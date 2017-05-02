@@ -1,33 +1,77 @@
 window.TEMPLATE_PATH = 'templates';
+FeedbackDialog.feedbackUrl = 'https://log.draw.io/email';
 
 (function()
 {
 	// Overrides default mode
 	App.mode = App.MODE_DEVICE;
-	
+
 	// Redirects printing to iframe to avoid document.write
-	PrintDialog.showPreview = function(preview, print)
+	var printDialogCreatePrintPreview = PrintDialog.createPrintPreview; 
+	
+	PrintDialog.createPrintPreview = function()
 	{
 		var iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
-		
+
+		var result = printDialogCreatePrintPreview.apply(this, arguments);
+		result.wnd = iframe.contentWindow;
+		result.iframe = iframe;
+				
 		// Workaround for lost gradients in print output
-		var getBaseUrl = mxSvgCanvas2D.prototype.getBaseUrl;
+		result.previousGetBaseUrl = mxSvgCanvas2D.prototype.getBaseUrl;
 		
 		mxSvgCanvas2D.prototype.getBaseUrl = function()
 		{
 			return '';
 		};
-
-		// Renders print output into iframe and prints
-		var result = preview.open(null, iframe.contentWindow);
-		iframe.contentWindow.print();
-		iframe.parentNode.removeChild(iframe);
-		
-		mxSvgCanvas2D.prototype.getBaseUrl = getBaseUrl;
 		
 		return result;
 	};
+	
+	var oldWindowOpen = window.open;
+	window.open = function(url)
+	{
+		if (url != null && url.startsWith('http'))
+		{
+			const {shell} = require('electron');
+			shell.openExternal(url);
+		}
+		else
+		{
+			return oldWindowOpen(url);
+		}
+	}
+
+	mxPrintPreview.prototype.addPageBreak = function(doc)
+	{
+		// Do nothing
+	};
+
+	mxPrintPreview.prototype.closeDocument = function()
+	{
+		var doc = this.wnd.document;
+		
+		// Removes all event handlers in the print output
+		mxEvent.release(doc.body);
+	};
+	
+	PrintDialog.printPreview = function(preview)
+	{
+		if (preview.iframe != null)
+		{
+			preview.iframe.contentWindow.print();
+			preview.iframe.parentNode.removeChild(preview.iframe);
+		
+			mxSvgCanvas2D.prototype.getBaseUrl = preview.previousGetBaseUrl;
+			preview.iframe = null;
+		}
+	};
+	
+	PrintDialog.previewEnabled = false;
+	
+	// Enables PDF export via print
+	EditorUi.prototype.printPdfExport = true;
 	
 	var menusInit = Menus.prototype.init;
 	Menus.prototype.init = function()
@@ -60,6 +104,16 @@ window.TEMPLATE_PATH = 'templates';
 
 		var editorUi = this;
 		var graph = this.editor.graph;
+		this.editor.autosave = false;
+		
+		global.__emt_isModified = e => {
+			if (this.getCurrentFile())
+				return this.getCurrentFile().isModified()
+			return false
+		}
+		// global.__emt_getCurrentFile = e => {
+		// 	return this.getCurrentFile()
+		// }
 
 		// Adds support for libraries
 		this.actions.addAction('newLibrary...', mxUtils.bind(this, function()
@@ -155,52 +209,49 @@ window.TEMPLATE_PATH = 'templates';
 //			}
 //		}));
 		
-//		// Replaces new action
-//		this.actions.addAction('new...', mxUtils.bind(this, function()
-//		{
-//			if (this.getCurrentFile() == null)
-//			{
-//				// LATER: In Chrome OS the extension is not enforced resulting
-//				// in possible files with no extension. Extensions such as XML,
-//				// SVG and HTML are and should be allowed. How can we fix this?
-//				chrome.fileSystem.chooseEntry({type: 'saveFile',
-//					accepts: [{description: 'Draw.io Diagram (.xml)',
-//					extensions: ['xml']}]}, mxUtils.bind(this, function(f)
-//				{
-//					if (!chrome.runtime.lastError)
-//					{
-//						var file = new LocalFile(editorUi, this.emptyDiagramXml, '');
-//						file.fileObject = f;
-//						
-//						editorUi.fileLoaded(file);
-//					}
-//					else if (chrome.runtime.lastError.message != 'User cancelled')
-//					{
-//						editorUi.handleError(chrome.runtime.lastError);
-//					}
-//				}));
-//			}
-//			else
-//			{
-//				// Could use URL parameter to call new action but conflicts with splash screen
-//				chrome.app.window.create('index.html',
-//				{
-//					bounds :
-//					{
-//						width: Math.floor(Math.min(screen.availWidth * 3 / 4, 1024)),
-//						height: Math.floor(Math.min(screen.availHeight * 3 / 4, 768)),
-//						left: Math.floor((screen.availWidth - Math.min(screen.availWidth * 3 / 4, 1024)) / 2),
-//						top: Math.floor((screen.availHeight - Math.min(screen.availHeight * 3 / 4, 768)) / 3)
-//					}
-//				});
-//			}
-//		}), null, null, 'Ctrl+N');
+		// Replaces new action
+		var oldNew = this.actions.get('new').funct;
+		
+		this.actions.addAction('new...', mxUtils.bind(this, function()
+		{
+			mxLog.debug(this.getCurrentFile());
+
+			if (this.getCurrentFile() == null)
+			{
+				oldNew();
+			}
+			else {
+				const ipc = require('electron').ipcRenderer
+				ipc.sendSync('winman', {action: 'newfile', opt: {width: 1600}})
+
+			}
+		}), null, null, 'Ctrl+N');
 		
 		this.actions.get('open').shortcut = 'Ctrl+O';
 		
 		// Adds shortcut keys for file operations
 		editorUi.keyHandler.bindAction(78, true, 'new'); // Ctrl+N
 		editorUi.keyHandler.bindAction(79, true, 'open'); // Ctrl+O
+		
+		editorUi.actions.addAction('keyboardShortcuts...', function()
+		{
+			const electron = require('electron');
+			const remote = electron.remote;
+			const BrowserWindow = remote.BrowserWindow;
+			keyboardWindow = new BrowserWindow({width: 1200, height: 1000});
+
+			// and load the index.html of the app.
+			keyboardWindow.loadURL(`file://${__dirname}/shortcuts.svg`);
+
+			// Emitted when the window is closed.
+			keyboardWindow.on('closed', function()
+			{
+			    // Dereference the window object, usually you would store windows
+			    // in an array if your app supports multi windows, this is the time
+			    // when you should delete the corresponding element.
+				keyboardWindow = null;
+			});
+		});
 	}
 
 	// Uses local picker
@@ -401,11 +452,6 @@ window.TEMPLATE_PATH = 'templates';
 
 	        var path = dialog.showSaveDialog();
 
-//			chrome.fileSystem.chooseEntry({type: 'saveFile',
-//				accepts: [(this.constructor == LocalFile) ? {description: 'Draw.io Diagram (.xml)',
-//				extensions: ['xml']} : {description: 'Draw.io Library (.xml)',
-//				extensions: ['xml']}]}, mxUtils.bind(this, function(xmlFile)
-
 	        if (path != null)
 	        {
 				this.fileObject = new Object();
@@ -429,11 +475,6 @@ window.TEMPLATE_PATH = 'templates';
 
         var path = dialog.showSaveDialog();
         
-//		chrome.fileSystem.chooseEntry({type: 'saveFile',
-//			accepts: [(this.constructor == LocalFile) ? {description: 'Draw.io Diagram (.xml)',
-//			extensions: ['xml']} : {description: 'Draw.io Library (.xml)',
-//			extensions: ['xml']}]}, mxUtils.bind(this, function(f)
-
         if (path != null)
         {
 			this.fileObject = new Object();
@@ -455,7 +496,7 @@ window.TEMPLATE_PATH = 'templates';
 				file.save(true, mxUtils.bind(this, function(resp)
 				{
 					this.spinner.stop();
-					this.editor.setStatus(mxResources.get('allChangesSaved'));
+					this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('allChangesSaved')));
 				}), mxUtils.bind(this, function(resp)
 				{
 					this.editor.setStatus('');
@@ -467,7 +508,7 @@ window.TEMPLATE_PATH = 'templates';
 				file.saveAs(null, mxUtils.bind(this, function(resp)
 				{
 					this.spinner.stop();
-					this.editor.setStatus(mxResources.get('allChangesSaved'));
+					this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('allChangesSaved')));
 				}), mxUtils.bind(this, function(resp)
 				{
 					this.editor.setStatus('');
@@ -563,32 +604,33 @@ window.TEMPLATE_PATH = 'templates';
 		}
 	};
 	
-	App.prototype.doSaveLocalFile = function(data, filename, mimeType, base64Encoded)
+	EditorUi.prototype.saveData = function(filename, format, data, mimeType, base64Encoded)
 	{
-		chrome.fileSystem.chooseEntry({type: 'saveFile', suggestedName: filename, acceptsAllTypes: true}, mxUtils.bind(this, function(fileEntry)
-		{
-			if (!chrome.runtime.lastError)
-			{
-				fileEntry.createWriter(mxUtils.bind(this, function(writer)
-				{
-					writer.onwriteend = mxUtils.bind(this, function()
-					{
-						writer.onwriteend = null;
-						writer.write((base64Encoded) ? this.base64ToBlob(data, mimeType) : new Blob([data], {type: mimeType}));
-					});
-					
-					writer.onerror = mxUtils.bind(this, function(e)
-					{
-						this.handleError(e);
-					});
-					
-					writer.truncate(0);
-				}));
-			}
-			else if (chrome.runtime.lastError.message != 'User cancelled')
-			{
-				this.handleError(chrome.runtime.lastError);
-			}
-		}));
+		const electron = require('electron');
+		var remote = electron.remote;
+		var dialog = remote.dialog;
+
+        var path = dialog.showSaveDialog();
+
+        if (path != null)
+        {
+			this.fileObject = new Object();
+			this.fileObject.path = path;
+			this.fileObject.name = path.replace(/^.*[\\\/]/, '');
+			var isImage = mimeType != null && mimeType.startsWith('image');
+			this.fileObject.type = base64Encoded ? 'base64' : 'utf-8';
+			var fs = require('fs');
+			
+			fs.writeFile(this.fileObject.path, data, this.fileObject.type, mxUtils.bind(this, function (e)
+		    {
+        		if (e)
+        		{
+        			// TODO
+        		}
+
+        	}));
+		}
 	};
+	
+	EditorUi.prototype.addBeforeUnloadListener = function() {};
 })();

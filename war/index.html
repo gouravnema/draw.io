@@ -294,6 +294,9 @@
 			if (document.location.protocol == 'file:')
 			{
 				mxDevUrl = '../../mxgraph2';
+				
+				// Forces includes for dev environment in node.js
+				mxForceIncludes = true;
 			}
 
 			var geBasePath = mxDevUrl + '/javascript/examples/grapheditor/www/js';
@@ -377,7 +380,7 @@
 			<td id="geFooterItem2">
 				<a title="HTML5 JavaScript Diagramming" target="_blank" href="https://github.com/jgraph/draw.io">
 					<img border="0" align="absmiddle" style="margin-top:-2px;padding-right:14px;"
-						src="images/glyphicons_github.png"/>Fork us on Github
+						src="images/glyphicons_github.png"/>Fork us on GitHub
 				</a>
 			</td>
 			<td id="geFooterItem1">

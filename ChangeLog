@@ -1,3 +1,396 @@
+29-APR-2017: 6.5.7
+
+- Fixes default and button labels for lost changes dialog
+- Fixes event handling for overlapping edge handles
+- Adds library export to local storage
+- Ignores auth files in local storage picker
+- Uses mxGraph 3.7.3 beta 3
+
+27-APR-2017: 6.5.6
+
+- Adds arrows and textbox to general sidebar
+- Fixes possible data loss when opening local files
+- Removes minimum of 120% for line height in format panel
+- Fixes highlight for scaled, selected arrows in realtime
+- Removes fix for cloned start/end arrow when splitting edge
+- Fixes touch events in Chrome for hiding modal dialogs
+- Uses mxGraph 3.7.3 beta 2
+
+24-APR-2017: 6.5.5
+
+- Fixes OneDrive file picker
+- Uses mxGraph 3.7.3 beta 1
+- Adds error handling in Google Docs add-on auth callback
+- Fixes cancel for access denied dialog in GitHub client
+- Adds sign out option for backends in splash screen
+- Fixes changes lost warning when saving draft
+- Removes clipart icons due to complaints
+- Fixes close icon in Chrome app footer
+
+20-APR-2017: 6.5.4
+
+- Updates Sandstorm build
+- Fixes download for exported PNG in Microsoft Edge
+- Fixes possible NPE in embed mode
+- Disables "Include a copy of my diagram" for PNG export by default
+
+14-APR-2017: 6.5.3
+
+- Disables hacked Dropbox client JS
+
+13-APR-2017: 6.5.2
+
+- Adds missing supercall in Editor.resetGraph override
+
+13-APR-2017: 6.5.1
+
+- Fixes dependency on mxSettings in viewer.min.js
+
+13-APR-2017: 6.5.0
+
+- Fixes extension for exported files with dots
+- Fixes lost changes after create or open file in same window
+- Fixes ignored default page size for Google Drive files
+- Adds Alt+Shift+C for clear waypoints
+- Adds toFront/Back context menu for multiple cells
+- Adds arc size for copy/paste style
+- Fixes rounded swimlane boundary cases
+- Uses Cloudflare CDN for loading MathJax
+- Adds clear waypoints for vertices with connections
+- Adds error handling for saving macro in Confluence Cloud
+- Fixes cloned start/end arrow when splitting edge
+- Adds support for global shadow in PDF export
+- Fixes special characters in branch names for GitHub client
+- Fixes missing arc handle for unknown shapes
+- Fixes hightlight size for arrows
+- Uses mxGraph 3.7.2
+
+06-APR-2017: 6.4.6
+
+- Works around page counter loop condition in FF
+
+05-APR-2017: 6.4.5
+
+- .vsdx import improvements
+
+03-APR-2017: 6.4.4
+
+- Increases black header title in Conf Cloud to push tick and cross out of visible area
+
+03-APR-2017: 6.4.3
+
+- Improvements to theming support for vsdx import
+- Fixes for grouped rotations in vsdx import
+
+28-MAR-2017: 6.4.2
+
+- Fixes embedded sheets in Google Drive Connector
+- Updates Russian translations
+- Improvements to theming support for vsdx import
+
+24-MAR-2017: 6.4.1
+
+- Initial .vsdx theming support
+
+21-MAR-2017: 6.4.0
+
+- Fixes scaling on .vsdx import
+- Adds Google Cloud Platform cards
+
+18-MAR-2017: 6.3.8
+
+- Changes display on marker pull-down for no marker in use
+
+17-MAR-2017: 6.3.7
+
+- Adds locale information to drive user
+
+16-MAR-2017: 6.3.6
+
+- Fixes selection of deleted parents after delete actions
+- Fixes missing XML for PNG export event in error case
+- Fixes timeout for PDF export with invalid images
+
+16-MAR-2017: 6.3.5
+
+- Disables tooltip in GraphViewer via showTitleAsTooltip
+- Fixes error handling for export message in embed mode
+- Fixes export of empty diagram in Graph.getSvg
+
+15-MAR-2017: 6.3.4
+
+- Fixes NPE in FF
+
+14-MAR-2017: 6.3.3
+
+- Fixes use of undefined variable in DriveClient
+
+14-MAR-2017: 6.3.2
+
+- Updates AWS icons
+- Added update plugin
+- Fixes update of thumbnail if page not visible
+
+12-MAR-2017: 6.3.1
+
+- Sorts properties in metadata dialog
+- Adds animation plugin
+
+11-MAR-2017: 6.3.0
+
+- Fixes slashes in branch names for GitHub client
+- Fixes order for add selected cells to library
+- Fixes order, missing shapes for export selected cells
+
+09-MAR-2017: 6.2.9
+
+- Fixes label offset for export of selected edges
+- Uses temporary file for drag and drop data
+- Uses mxGraph 3.7.2 beta 1
+
+09-MAR-2017: 6.2.8
+
+- Fixes ignored user ID in state URL parameter
+
+08-MAR-2017: 6.2.7
+
+- Fixes insert, copy, rename and move for Google Team Drives
+
+07-MAR-2017: 6.2.6
+
+- Adds support for Google Team Drives
+
+07-MAR-2017: 6.2.5
+
+- Adds remote JPEG export option
+- Fixes OneDrive, adds GitHub in Edit Link dialog
+- Fixes import of JPG and GIF from GitHub and URL
+
+01-MAR-2017: 6.2.4
+
+- Uses mxGraph 3.7.1
+- Fixes inserting files in OneDrive
+- Hides folder picker if no folders in Drive
+- Fixes possible NPE in retry error handling
+
+28-FEB-2017: 6.2.3
+
+- Fixes label for turn action
+- Fixes use of undefined function in Dropbox client
+
+28-FEB-2017: 6.2.2
+
+- Handles expired oauth tokens
+- Handles blocked Dropbox client API
+- Fixes autosave for libraries and scratchpad
+- Fixes spinner for template dialog in embed mode
+
+22-FEB-2017: 6.2.1
+
+- Faster read, fixes possible NPE in Dropbox
+
+22-FEB-2017: 6.2.0
+
+- Fixes encoding errors in GitHub client
+- Checks size in GitHub and Dropbox
+- Fixes initial SVG file contents
+- Adds target=frame URL parameter
+- Moves cookies to local storage
+- Adds recent files in splash
+- Uses mxGraph 3.7.0.2 beta 5
+- Uses Dropbox API v2
+
+17-FEB-2017: 6.1.2
+
+- Uses semantic versioning
+- Fixes possible NPE in format panel
+
+16-FEB-2017: 6.1.1.0
+
+- Uses mxGraph 3.7.0.2 beta 4
+- Adds import for SVG and JPG images from backends
+- Adds VSDX/Gliffy/PNG+XML import/open from backends
+- Adds border option for image export
+- Adds timeout handlers for Atlassian cloud
+- Fixes ignored crop in JPEG export
+
+15-FEB-2017: 6.1.0.3
+
+- Fixes possible NPE in OneDriveClient
+- Adds client-side JPG export option
+
+14-FEB-2017: 6.1.0.2
+
+- Adds picker for GitHub
+- Uses mxGraph 3.7.0.2 beta 3
+- Changes dialog title for PDF export in Chrome app
+- Adds pages option in image and SVG export dialog
+- Fixes cancel in message dialog for GitHub insert
+
+11-FEB-2017: 6.1.0.1
+
+- Fixes overwrite of GitHub files
+- Fixes default values in GitHub dialog
+- Fixes initial save for graphics formats
+
+11-FEB-2017: 6.1.0.0
+
+- Fixes HTML export
+- Adds GitHub support
+- Fixes processing order in CSV import
+- Fixes checks for valid HTTP responses
+
+08-FEB-2017: 6.0.3.7
+
+- Fixes preview for Embed HTML dialog
+
+08-FEB-2017: 6.0.3.6
+
+- Adds help button in publish link dialog
+- Uses desk.draw.io for searching help
+- Adds export HTML dialog
+
+07-FEB-2017: 6.0.3.5
+
+- Fixes hidden image in Chrome for image export to new window
+- Fixes fallback for non-public Google Drive files
+- Fixes blurred image for client-side image export in Chrome
+- Uses mxGraph 3.7.0.2 beta 2
+
+07-FEB-2017: 6.0.3.4
+
+- Shows related articles in help links
+- Adds link options in HTML and URL dialogs
+
+06-FEB-2017: 6.0.3.3
+
+- Uses mxGraph 3.7.0.2 beta 1
+- Fixes conversion for plain and formatted text
+- Adds Ctrl+Enter for newlines in Safari
+- Replaces ?url URL parameter with #U hash value
+- Uses public diagram URL in Google Drive Connector
+
+03-FEB-2017: 6.0.3.2
+
+- Fixes Embed dialogs
+- Moves Insert to Extras, CSV to File, Import
+- Adds fallback for Publish Link action
+- Removes Imgur and Github publish options
+
+03-FEB-2017: 6.0.3.1
+
+- Updates Dutch translations
+- Fixes lost value when cloning page while editing
+- Fixes possible NPE when removing images from custom libraries
+- Fixes unicode page name character in vsdx import
+
+31-JAN-2017: 6.0.3.0
+
+- Hides plugin warning for all local plugins
+- Adds prefetched URLs in embed to fix CORS issue
+- Fixes public URL for shared Google Drive files
+- Adds Export, URL and #R raw file types
+
+30-JAN-2017: 6.0.2.16
+
+- Adds CSV import plugin
+
+29-JAN-2017: 6.0.2.15
+
+- Uses mxGraph 3.7.0.1
+
+27-JAN-2017: 6.0.2.14
+
+- Fixes status bar in Firefox in Atlas theme
+
+26-JAN-2017: 6.0.2.13
+
+- Updates Arrange tab after remove from group
+- Faster image and SVG export
+- Uses mxGraph 3.7.0.1 beta 1
+
+18-JAN-2017: 6.0.2.12
+
+- Adds width, height in advanced export dialog
+
+18-JAN-2017: 6.0.2.11
+
+- Adds crop option for SVG and image export
+- Fixes PDF crop export option
+- Adds text extraction plugin
+- Uses mxGraph 3.7.0.0
+
+13-JAN-2017: 6.0.2.10
+
+- Removes green background from server-side image export
+- Ignores convention of not using double digit release numbers
+
+13-JAN-2017: 6.0.2.9
+
+- Adds Google Cloud icons
+- Removes lightbox link for Imgur files
+- Uses mxGraph 3.7.0.0 beta 13
+
+09-JAN-2017: 6.0.2.8
+
+- Adds props plugin
+- Uses mxGraph 3.7.0.0 beta 12
+- Adds help button in print dialog
+
+28-DEC-2016: 6.0.2.7
+
+- Adds dialog for selecting pages in docs add-on
+- Fixes update all for generic links in docs add-on
+- Adds open in new window, data URI import while offline
+- Adds import for Lucidchart files
+
+26-DEC-2016: 6.0.2.6
+
+- Fixes lazy loading of clients in chromeless mode
+- Fixes export of arbitrary pages with advanced dialog
+
+23-DEC-2016: 6.0.2.5
+
+- Adds PlantUML option in text dialog
+- Uses mxGraph 3.7.0.0 beta 11
+
+14-DEC-2016: 6.0.2.4
+
+- Adds text field support for .vsdx import
+
+13-DEC-2016: 6.0.2.3
+
+- Improves .vsdx import text handling
+
+12-DEC-2016: 6.0.2.2
+
+- Improves .vsdx import
+
+08-DEC-2016: 6.0.2.1
+
+- Adds edit option in HTML and SVG embed dialog
+- Moves tags, find plugins to editor
+- Uses mxGraph 3.7.0.0 beta 11
+- Fixes ignored width in viewer after page change
+- Adds number plugin for numbering shapes
+
+06-DEC-2016: 6.0.2.0
+
+- Stops allowing diagrams on new Conf Cloud pages
+- Fixes URL encoding for Conf Connect diagram names
+- Fixes page breaks, blank pages in PDF export
+- Fixes viewer in hidden containers for IE9-
+- Uses mxGraph 3.7.0.0 beta 10
+
+02-DEC-2016: 6.0.1.9
+
+- Adds context path to URL for Connect Rendermode
+
+01-DEC-2016: 6.0.1.8
+
+- Removes blocking DIV while inserting files
+- Adds marker styles for copy/paste style
+
 23-NOV-2016: 6.0.1.7
 
 - Fixes links to same domain for viewer in iframes
@@ -2866,7 +3259,7 @@
 - Adds edge width option in arrange panel
 - Changes replace existing diagram to open in this window
 - Fixes connection points for tee and corner shape
-- Fixes iconfinder search client for github domain
+- Fixes iconfinder search client for GitHub domain
 - Adds thumb=0 URL parameter to disable thumbnails in Drive
 - Adds autosize option in embed dialog for responsive pages
 - Adds rounded support for single- and doubleArrow vertices
@@ -4215,11 +4608,11 @@
 - Uses mxGraph 1.10.3.1
 - Fixes background color for SVG export in quirks mode
 - Enables Google image picker on Mac/iPad
-- Adds Github menu item in help menu
+- Adds GitHub menu item in help menu
 
 29-AUG-2012: 1.6.1.9
 
-- Fixes Github deployment Ant task
+- Fixes GitHub deployment Ant task
 - Fixes German Facebook button (changes to English)
 - Fixes touch-based panning for embedded diagrams
 - Uses mxGraph 1.10.3.0

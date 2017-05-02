@@ -169,7 +169,7 @@
 			   	var button1 = new mxCell('Page 1', new mxGeometry(60, 12, 110, 26), s2 + 'containers.anchor;fontSize=17;fontColor=#666666;align=left;');
 			   	button1.vertex = true;
 			   	bg.insert(button1);
-			   	var button2 = new mxCell('https:\\\\draw.io', new mxGeometry(130, 60, 250, 26), s2 + 'containers.anchor;rSize=0;fontSize=17;fontColor=#666666;align=left;');
+			   	var button2 = new mxCell('https://www.draw.io', new mxGeometry(130, 60, 250, 26), s2 + 'containers.anchor;rSize=0;fontSize=17;fontColor=#666666;align=left;');
 			   	button2.vertex = true;
 			   	bg.insert(button2);
 
@@ -427,7 +427,7 @@
 
 			this.addEntry(dt + 'list box', function()
 			{
-			   	var bg2 = new mxCell('', new mxGeometry(0, 00, 150, 200), s2 + 'forms.rrect;rSize=0;strokeColor=#999999;fillColor=#ffffff;');
+			   	var bg2 = new mxCell('', new mxGeometry(0, 0, 150, 200), s2 + 'forms.rrect;rSize=0;strokeColor=#999999;fillColor=#ffffff;');
 			   	bg2.vertex = true;
 			   	var bg = new mxCell('Title', new mxGeometry(0, 0, 150, 30), s2 + 'forms.rrect;rSize=0;strokeColor=#999999;fontColor=#008cff;fontSize=17;fillColor=#ffffff;resizeWidth=1;');
 			   	bg.geometry.relative = true;

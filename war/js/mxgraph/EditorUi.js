@@ -56,12 +56,7 @@ EditorUi = function(editor, container, lightbox)
 			evt = window.event;
 		}
 		
-		if (this.isSelectionAllowed(evt))
-		{
-			return true;
-		}
-		
-		return graph.isEditing();
+		return this.isSelectionAllowed(evt) ||  graph.isEditing();
 	});
 
 	// Disables text selection while not editing and no dialog visible
@@ -108,33 +103,6 @@ EditorUi = function(editor, container, lightbox)
 	// Contains the main graph instance inside the given panel
 	graph.init(this.diagramContainer);
 
-	// Intercepts links with no target attribute and opens in new window
-	graph.cellRenderer.initializeLabel = function(state, shape)
-	{
-		mxCellRenderer.prototype.initializeLabel.apply(this, arguments);
-		
-		mxEvent.addListener(shape.node, 'click', function(evt)
-		{
-			var elt = mxEvent.getSource(evt)
-			
-			while (elt != null && elt != shape.node)
-			{
-				if (elt.nodeName == 'A')
-				{
-					if (elt.getAttribute('target') == null && elt.getAttribute('href') != null)
-					{
-						window.open(elt.getAttribute('href'));
-						mxEvent.consume(evt);
-					}
-
-					break;
-				}
-				
-				elt = elt.parentNode;
-			}
-		});
-	};
-	
 	// Creates hover icons
 	this.hoverIcons = this.createHoverIcons();
 	
@@ -208,13 +176,15 @@ EditorUi = function(editor, container, lightbox)
 			mxEvent.isMiddleMouseButton(me.getEvent())));
 	};
 
-	// Ctrl/Cmd+Enter applies editing value
+	// Ctrl/Cmd+Enter applies editing value except in Safari where Ctrl+Enter creates
+	// a new line (while Enter creates a new paragraph and Shift+Enter stops)
 	var cellEditorIsStopEditingEvent = graph.cellEditor.isStopEditingEvent;
 	graph.cellEditor.isStopEditingEvent = function(evt)
 	{
 		return cellEditorIsStopEditingEvent.apply(this, arguments) ||
-			(evt.keyCode == 13 && (mxEvent.isControlDown(evt) ||
-			(mxClient.IS_MAC && mxEvent.isMetaDown(evt))));
+			(evt.keyCode == 13 && ((!mxClient.IS_SF && mxEvent.isControlDown(evt)) ||
+			(mxClient.IS_MAC && mxEvent.isMetaDown(evt)) ||
+			(mxClient.IS_SF && mxEvent.isShiftDown(evt))));
 	};
 	
 	// Switches toolbar for text editing
@@ -1987,7 +1957,7 @@ EditorUi.prototype.lightboxFit = function()
 {
 	// LATER: Use initial graph bounds to avoid rounding errors
 	this.editor.graph.maxFitScale = 2;
-	this.editor.graph.fit(20);
+	this.editor.graph.fit(60);
 	this.editor.graph.maxFitScale = null;
 };
 
@@ -2557,9 +2527,9 @@ EditorUi.prototype.updateActionStates = function()
 	}
 	
 	this.actions.get('setAsDefaultStyle').setEnabled(graph.getSelectionCount() == 1);
+	this.actions.get('clearWaypoints').setEnabled(!graph.isSelectionEmpty());
 	this.actions.get('turn').setEnabled(!graph.isSelectionEmpty());
 	this.actions.get('curved').setEnabled(edgeSelected);
-	this.actions.get('clearWaypoints').setEnabled(edgeSelected);
 	this.actions.get('rotation').setEnabled(vertexSelected);
 	this.actions.get('wordWrap').setEnabled(vertexSelected);
 	this.actions.get('autosize').setEnabled(vertexSelected);
@@ -3253,7 +3223,7 @@ EditorUi.prototype.save = function(name)
 				}
 
 				localStorage.setItem(name, xml);
-				this.editor.setStatus(mxResources.get('saved') + ' ' + new Date());
+				this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('saved')) + ' ' + new Date());
 			}
 			else
 			{
@@ -3277,7 +3247,7 @@ EditorUi.prototype.save = function(name)
 		}
 		catch (e)
 		{
-			this.editor.setStatus('Error saving file');
+			this.editor.setStatus(mxUtils.htmlEntities(mxResources.get('errorSavingFile')));
 		}
 	}
 };
@@ -3323,6 +3293,11 @@ EditorUi.prototype.executeLayout = function(exec, animate, post)
 			else
 			{
 				graph.getModel().endUpdate();
+				
+				if (post != null)
+				{
+					post();
+				}
 			}
 		}
 	}
@@ -3629,10 +3604,24 @@ EditorUi.prototype.createKeyHandler = function(editor)
 	
 	var keyHandlerGetFunction = keyHandler.getFunction;
 
+	// Alt+Shift+Keycode mapping to action
+	var altShiftActions = {67: this.actions.get('clearWaypoints')}; // Alt+Shift+C
+	
 	mxKeyHandler.prototype.getFunction = function(evt)
 	{
 		if (graph.isEnabled())
 		{
+			// TODO: Add alt modified state in core API, here are some specific cases
+			if (!graph.isSelectionEmpty() && mxEvent.isShiftDown(evt) && mxEvent.isAltDown(evt))
+			{
+				var action = altShiftActions[evt.keyCode];
+
+				if (action != null)
+				{
+					return action.funct;
+				}
+			}
+			
 			if (evt.keyCode == 9 && mxEvent.isAltDown(evt))
 			{
 				if (mxEvent.isShiftDown(evt))

@@ -1,42 +1,21 @@
 /**
- * Copyright (c) 2006-2016, JGraph Ltd
- * Copyright (c) 2006-2016, Gaudenz Alder
+ * Copyright (c) 2006-2017, JGraph Ltd
+ * Copyright (c) 2006-2017, Gaudenz Alder
  */
-/**
- * Constructs a new point for the optional x and y coordinates. If no
- * coordinates are given, then the default values for <x> and <y> are used.
- * @constructor
- * @class Implements a basic 2D point. Known subclassers = {@link mxRectangle}.
- * @param {number} x X-coordinate of the point.
- * @param {number} y Y-coordinate of the point.
- */
-DrawioUser = function(id, email, displayName, pictureUrl)
+DrawioUser = function(id, email, displayName, pictureUrl, locale)
 {
-	/**
-	 * Holds the x-coordinate of the point.
-	 * @type number
-	 * @default 0
-	 */
+	// Unique ID of the user for the current storage system
 	this.id = id;
 	
-	/**
-	 * Holds the x-coordinate of the point.
-	 * @type number
-	 * @default 0
-	 */
+	// Email address of the user
 	this.email = email;
 	
-	/**
-	 * Holds the x-coordinate of the point.
-	 * @type number
-	 * @default 0
-	 */
+	// Display name of the user
 	this.displayName = displayName;
 	
-	/**
-	 * Holds the x-coordinate of the point.
-	 * @type number
-	 * @default 0
-	 */
+	// URL to an image of the user
 	this.pictureUrl = pictureUrl;
+	
+	// country code locale of the user
+	this.locale = locale;
 };

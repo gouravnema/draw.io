@@ -1,14 +1,6 @@
 /**
- * Copyright (c) 2006-2016, JGraph Ltd
- * Copyright (c) 2006-2016, Gaudenz Alder
- */
-/**
- * Constructs a new point for the optional x and y coordinates. If no
- * coordinates are given, then the default values for <x> and <y> are used.
- * @constructor
- * @class Implements a basic 2D point. Known subclassers = {@link mxRectangle}.
- * @param {number} x X-coordinate of the point.
- * @param {number} y Y-coordinate of the point.
+ * Copyright (c) 2006-2017, JGraph Ltd
+ * Copyright (c) 2006-2017, Gaudenz Alder
  */
 DriveClient = function(editorUi)
 {
@@ -167,22 +159,24 @@ DriveClient.prototype.getUser = function()
  */
 DriveClient.prototype.setUserId = function(userId, remember)
 {
-	if (typeof(Storage) != 'undefined')
+	if (remember)
 	{
-		try
+		if (isLocalStorage)
 		{
-			sessionStorage.setItem('GUID', userId);
-			
-			if (remember)
+			localStorage.setItem('.guid', userId);
+		}
+		else if (typeof(Storage) != 'undefined')
+		{
+			try
 			{
 				var expiry = new Date();
 				expiry.setYear(expiry.getFullYear() + 1);
 				document.cookie = 'GUID=' + userId + '; expires=' + expiry.toUTCString();
 			}
-		}
-		catch (e)
-		{
-			// any errors for storing the user ID can be safely ignored
+			catch (e)
+			{
+				// any errors for storing the user ID can be safely ignored
+			}
 		}
 	}
 };
@@ -192,10 +186,12 @@ DriveClient.prototype.setUserId = function(userId, remember)
  */
 DriveClient.prototype.clearUserId = function()
 {
-	if (typeof(Storage) != 'undefined')
+	if (isLocalStorage)
 	{
-		sessionStorage.removeItem('GUID');
-
+		localStorage.removeItem('.guid');
+	}
+	else if (typeof(Storage) != 'undefined')
+	{
 		var expiry = new Date();
 		expiry.setYear(expiry.getFullYear() - 1);
 		document.cookie = 'GUID=; expires=' + expiry.toUTCString();
@@ -213,29 +209,35 @@ DriveClient.prototype.getUserId = function()
 	{
 		uid = this.user.id;
 	}
-
-	if (typeof(Storage) != 'undefined')
+	
+	if (uid == null && isLocalStorage)
 	{
-		if (uid == null)
+		uid = localStorage.getItem('.guid');
+	}
+	
+	if (uid == null	&& typeof(Storage) != 'undefined')
+	{
+		var cookies = document.cookie.split(";");
+		
+		for (var i = 0; i < cookies.length; i++)
 		{
-			uid = sessionStorage.getItem('GUID');
+			// Removes spaces around cookie
+			var cookie = mxUtils.trim(cookies[i]);
+			
+			if (cookie.substring(0, 5) == 'GUID=')
+			{
+				uid = cookie.substring(5);
+				break;
+			}
 		}
 		
-		if (uid == null)
+		if (uid != null && isLocalStorage)
 		{
-			var cookies = document.cookie.split(";");
-			
-			for (var i = 0; i < cookies.length; i++)
-			{
-				// Removes spaces around cookie
-				var cookie = mxUtils.trim(cookies[i]);
-				
-				if (cookie.substring(0, 5) == 'GUID=')
-				{
-					uid = cookie.substring(5);
-					break;
-				}
-			}
+			// Moves to local storage
+			var expiry = new Date();
+			expiry.setYear(expiry.getFullYear() - 1);
+			document.cookie = 'GUID=; expires=' + expiry.toUTCString();
+			localStorage.setItem('.guid', uid);
 		}
 	}
 	
@@ -403,6 +405,12 @@ DriveClient.prototype.authorize = function(immediate, success, error, remember)
 {
 	var userId = this.getUserId();
 	
+	// Takes userId from state URL parameter
+	if (this.ui.stateArg != null && this.ui.stateArg.userId != null)
+	{
+		userId = this.ui.stateArg.userId;
+	}
+	
 	// Immediate only possible with userId
 	if (immediate && userId == null)
 	{
@@ -527,7 +535,7 @@ DriveClient.prototype.updateUser = function(success, error, remember)
     	this.executeRequest(gapi.client.drive.about.get(), mxUtils.bind(this, function(resp)
     	{
     		this.setUser(new DrawioUser(info.id, resp.user.emailAddress, resp.user.displayName,
-    				(resp.user.picture != null) ? resp.user.picture.url : null));
+    				(resp.user.picture != null) ? resp.user.picture.url : null, info.locale));
         	this.setUserId(info.id, remember);
 
     		if (success != null)
@@ -548,7 +556,8 @@ DriveClient.prototype.copyFile = function(id, title, success, error)
 {
 	if (id != null && title != null)
 	{
-		this.executeRequest(gapi.client.drive.files.copy({'fileId': id, 'resource': {'title' : title}}), success, error);
+		this.executeRequest(gapi.client.drive.files.copy({'fileId': id, 'resource':
+			{'title' : title}, 'supportsTeamDrives': true}), success, error);
 	}
 };
 
@@ -576,7 +585,8 @@ DriveClient.prototype.moveFile = function(id, folderId, success, error)
 {
 	if (id != null && folderId != null)
 	{
-		this.executeRequest(this.createDriveRequest(id, {'parents': [{'kind': 'drive#fileLink', 'id': folderId}]}), success, error);
+		this.executeRequest(this.createDriveRequest(id, {'parents': [{'kind':
+			'drive#fileLink', 'id': folderId}]}), success, error);
 	}
 };
 
@@ -591,7 +601,7 @@ DriveClient.prototype.createDriveRequest = function(id, body)
 	return gapi.client.request({
 		'path': '/drive/v2/files/' + id,
 		'method': 'PUT',
-		'params': {'uploadType' : 'multipart'},
+		'params': {'uploadType' : 'multipart', 'supportsTeamDrives': true},
 		'headers': {'Content-Type': 'application/json; charset=UTF-8'},
 		'body': JSON.stringify(body)
 	});
@@ -603,40 +613,6 @@ DriveClient.prototype.createDriveRequest = function(id, body)
 DriveClient.prototype.getLibrary = function(id, success, error)
 {
 	return this.getFile(id, success, error, true, true);
-};
-
-/**
- * Checks if the client is authorized and calls the next step. The optional
- * readXml argument is used for import. Default is false. The optional
- * readLibrary argument is used for reading libraries. Default is false.
- */
-DriveClient.prototype.convertFile = function(resp, success, error)
-{
-	var name = resp.title;
-	name = name.substring(0, name.lastIndexOf('.')) + this.extension;
-	
-	// Gets file data
-	var token = gapi.auth.getToken().access_token;
-	var url = resp.downloadUrl + '&access_token=' + token;
-	
-	this.ui.loadUrl(url, mxUtils.bind(this, function(data)
-	{
-		this.ui.parseFile(new Blob([data], {type: 'application/octet-stream'}), mxUtils.bind(this, function(xhr)
-		{
-			if (xhr.readyState == 4)
-			{
-				if (xhr.status == 200 && xhr.responseText.substring(0, 13) == '<mxGraphModel')
-				{
-					this.insertFile(name, xhr.responseText, (resp.parents != null && resp.parents.length > 0) ?
-						resp.parents[0].id : null, success, error);
-				}
-				else if (error != null)
-				{
-					error({message: mxResources.get('errorLoadingFile')});
-				}
-			}
-		}), resp.title);
-	}));
 };
 
 /**
@@ -658,15 +634,15 @@ DriveClient.prototype.getFile = function(id, success, error, readXml, readLibrar
 	}
 	else
 	{
-		this.executeRequest(gapi.client.drive.files.get({'fileId': id}), mxUtils.bind(this, function(resp)
+		this.executeRequest(gapi.client.drive.files.get({'fileId': id, 'supportsTeamDrives': true}), mxUtils.bind(this, function(resp)
 		{
 			if (this.user != null)
 			{
-				// Handles .vsdx and Gliffy files by creating a new file
-				if (!readLibrary && !readXml && Graph.fileSupport && new XMLHttpRequest().upload &&
-					(/(\.vsdx)$/i.test(resp.title) || /(\.gliffy)$/i.test(resp.title)))
+				// Handles .vsdx, Gliffy and PNG+XML files by creating a temporary file
+				if ((/\.vsdx$/i.test(resp.title) || /\.gliffy$/i.test(resp.title) || /\.png$/i.test(resp.title)))
 				{
-					this.convertFile(resp, success, error);
+					var url = resp.downloadUrl + '&access_token=' + gapi.auth.getToken().access_token;
+					this.ui.convertFile(url, resp.title, resp.mimeType, this.extension, success, error);
 				}
 				else
 				{
@@ -715,7 +691,9 @@ DriveClient.prototype.getFile = function(id, success, error, readXml, readLibrar
 DriveClient.prototype.loadRealtime = function(resp, success, error)
 {
 	// Redirects to new app because the realtime models of different apps are not visible
-	if (urlParams['ignoremime'] != '1' && this.appId == '420247213240' && (resp.mimeType == 'application/mxr' || resp.mimeType == 'application/vnd.jgraph.mxfile.realtime'))
+	if (urlParams['ignoremime'] != '1' && this.appId == '420247213240' &&
+		(resp.mimeType == 'application/vnd.jgraph.mxfile.realtime' ||
+		resp.mimeType == 'application/mxr'))
 	{
 		this.redirectToNewApp(error, resp.id);
 	}
@@ -801,7 +779,8 @@ DriveClient.prototype.getXmlFile = function(resp, doc, success, error, ignoreMim
 				success(file);
 			}
 		}
-	}), error, resp.mimeType == 'image/png');
+	}), error, (resp.mimeType.substring(0, 6) == 'image/' && resp.mimeType.substring(0, 9) != 'image/svg') ||
+		/\.png$/i.test(resp.title) || /\.jpe?g$/i.test(resp.title));
 };
 
 /**
@@ -876,11 +855,9 @@ DriveClient.prototype.saveFile = function(file, revision, success, error, noChec
 		// (required because generation of thumbnails is asynchronous)
 		var fn = mxUtils.bind(this, function()
 		{
-			var keepExistingThumb = this.ui.currentPage != null && this.ui.currentPage != this.ui.pages[0];
-
 			// NOTE: getThumbnail is asynchronous and returns false if no thumbnails can be created
 			if (unloading || file.constructor == DriveLibrary || !this.enableThumbnails || urlParams['thumb'] == '0' ||
-				keepExistingThumb || !this.ui.getThumbnail(this.thumbnailWidth, mxUtils.bind(this, function(canvas)
+				!this.ui.getThumbnail(this.thumbnailWidth, mxUtils.bind(this, function(canvas)
 			{
 				// Callback for getThumbnail
 				var thumb = null;
@@ -913,7 +890,7 @@ DriveClient.prototype.saveFile = function(file, revision, success, error, noChec
 			})))
 			{
 				// If-branch
-				doSave(null, null, file.constructor != DriveLibrary && keepExistingThumb);
+				doSave(null, null, file.constructor != DriveLibrary);
 			}
 		});
 		
@@ -963,7 +940,7 @@ DriveClient.prototype.verifyMimeType = function(fileId, fn, force, error)
 		{
 			this.checkingMimeType = true;
 			
-			this.executeRequest(gapi.client.drive.files.get({'fileId': fileId, 'fields': 'mimeType'}), mxUtils.bind(this, function(resp)
+			this.executeRequest(gapi.client.drive.files.get({'fileId': fileId, 'fields': 'mimeType', 'supportsTeamDrives': true}), mxUtils.bind(this, function(resp)
 			{
 				this.checkingMimeType = false;
 				
@@ -1113,6 +1090,8 @@ DriveClient.prototype.createUploadRequest = function(id, metadata, data, revisio
 		reqObj.params['newRevision'] = false;
 	}
 	
+	reqObj.params['supportsTeamDrives'] = true;
+	
 	return gapi.client.request(reqObj);
 };
 
@@ -1186,6 +1165,12 @@ DriveClient.prototype.pickFile = function(fn, acceptAllFiles)
 					view.setMimeTypes(this.mimeTypes);
 					view2.setMimeTypes(this.mimeTypes);
 				}
+				else
+				{
+					// Workaround for no files shown
+					view.setMimeTypes(this.mimeTypes + ',image/png,image/jpg,image/svg+xml,' +
+						'application/xml,text/plain,text/html');
+				}
 				
 				this[name] = new google.picker.PickerBuilder()
 			        .setOAuthToken(this[name + 'Token'])
@@ -1231,74 +1216,97 @@ DriveClient.prototype.pickFolder = function(fn)
 	
 	if (this.ui.spinner.spin(document.body, mxResources.get('authorizing')))
 	{
-		this.execute(mxUtils.bind(this, function()
+		var showPicker = mxUtils.bind(this, function()
 		{
-			this.ui.spinner.stop();
-	
-			// Reuses picker as long as token doesn't change.
-			var token = gapi.auth.getToken().access_token;
-			var name = 'folderPicker';
-			
-			// Click on background closes dialog as workaround for blocking dialog
-			// states such as 401 where the dialog cannot be closed and blocks UI
-			var exit = mxUtils.bind(this, function(evt)
+			this.execute(mxUtils.bind(this, function()
 			{
-				// Workaround for click from appIcon on second call
-				if (mxEvent.getSource(evt).className == 'picker modal-dialog-bg picker-dialog-bg')
+				this.ui.spinner.stop();
+
+				// Reuses picker as long as token doesn't change.
+				var token = gapi.auth.getToken().access_token;
+				var name = 'folderPicker';
+				
+				// Click on background closes dialog as workaround for blocking dialog
+				// states such as 401 where the dialog cannot be closed and blocks UI
+				var exit = mxUtils.bind(this, function(evt)
 				{
-					mxEvent.removeListener(document, 'click', exit);
-					this[name].setVisible(false);
+					// Workaround for click from appIcon on second call
+					if (mxEvent.getSource(evt).className == 'picker modal-dialog-bg picker-dialog-bg')
+					{
+						mxEvent.removeListener(document, 'click', exit);
+						this[name].setVisible(false);
+					}
+				});
+				
+				if (this[name] == null || this[name + 'Token'] != token)
+				{
+					// FIXME: Dispose not working
+	//				if (this[name] != null)
+	//				{
+	//					console.log(name, this[name]);
+	//					this[name].dispose();
+	//				}
+					
+					this[name + 'Token'] = token;
+	
+					// Pseudo-hierarchical directory view, see
+					// https://groups.google.com/forum/#!topic/google-picker-api/FSFcuJe7icQ
+					var view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+			        	.setParent('root')
+			        	.setIncludeFolders(true)
+						.setSelectFolderEnabled(true)
+			        	.setMimeTypes('application/vnd.google-apps.folder');
+					
+					var view2 = new google.picker.DocsView()
+						.setIncludeFolders(true) 
+						.setSelectFolderEnabled(true)
+						.setMimeTypes('application/vnd.google-apps.folder');
+				
+					this[name] = new google.picker.PickerBuilder()
+						.setSelectableMimeTypes('application/vnd.google-apps.folder')
+				        .setOAuthToken(this[name + 'Token'])
+				        .setLocale(mxLanguage)
+				        .setAppId(this.appId)
+				        .addView(view)
+				        .addView(view2)
+				        .addView(google.picker.ViewId.RECENTLY_PICKED)
+				        .setTitle(mxResources.get('pickFolder'))
+				        .setCallback(mxUtils.bind(this, function(data)
+				        {
+				        	if (data.action == google.picker.Action.PICKED ||
+				        		data.action == google.picker.Action.CANCEL)
+				        	{
+				        		mxEvent.removeListener(document, 'click', exit);
+				        	}
+				        	
+				        	this.folderPickerCallback(data);
+				        })).build();
 				}
-			});
-			
-			if (this[name] == null || this[name + 'Token'] != token)
+	
+				mxEvent.addListener(document, 'click', exit);
+				this[name].setVisible(true);
+				this.ui.movePickersToTop();
+			}));
+		});
+		
+		// Does not show picker if there are no folders in the root
+		this.executeRequest(gapi.client.drive.children.list({'folderId': 'root', 'maxResults': 1,
+			'q': 'trashed=false and mimeType=\'application/vnd.google-apps.folder\''}),
+			mxUtils.bind(this, function(res)
+		{
+			if (res == null || res.items == null || res.items.length == 0)
 			{
-				// FIXME: Dispose not working
-//				if (this[name] != null)
-//				{
-//					console.log(name, this[name]);
-//					this[name].dispose();
-//				}
-				
-				this[name + 'Token'] = token;
-
-				// Pseudo-hierarchical directory view, see
-				// https://groups.google.com/forum/#!topic/google-picker-api/FSFcuJe7icQ
-				var view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-		        	.setParent('root')
-		        	.setIncludeFolders(true)
-					.setSelectFolderEnabled(true)
-		        	.setMimeTypes('application/vnd.google-apps.folder');
-				
-				var view2 = new google.picker.DocsView()
-					.setIncludeFolders(true) 
-					.setSelectFolderEnabled(true)
-					.setMimeTypes('application/vnd.google-apps.folder');
-			
-				this[name] = new google.picker.PickerBuilder()
-					.setSelectableMimeTypes('application/vnd.google-apps.folder')
-			        .setOAuthToken(this[name + 'Token'])
-			        .setLocale(mxLanguage)
-			        .setAppId(this.appId)
-			        .addView(view)
-			        .addView(view2)
-			        .addView(google.picker.ViewId.RECENTLY_PICKED)
-			        .setTitle(mxResources.get('pickFolder'))
-			        .setCallback(mxUtils.bind(this, function(data)
-			        {
-			        	if (data.action == google.picker.Action.PICKED ||
-			        		data.action == google.picker.Action.CANCEL)
-			        	{
-			        		mxEvent.removeListener(document, 'click', exit);
-			        	}
-			        	
-			        	this.folderPickerCallback(data);
-			        })).build();
+				// Simulates a pick event
+				this.ui.spinner.stop();
+				fn({'action': google.picker.Action.PICKED, 'docs': [{'type': 'folder', 'id': 'root'}]});
 			}
-
-			mxEvent.addListener(document, 'click', exit);
-			this[name].setVisible(true);
-			this.ui.movePickersToTop();
+			else
+			{
+				showPicker();
+			}
+		}), mxUtils.bind(this, function(err)
+		{
+			showPicker();
 		}));
 	}
 };

@@ -82,6 +82,7 @@ window.mxLanguageMap = window.mxLanguageMap ||
 	'et' : 'Eesti',
 	'en' : 'English',
 	'es' : 'Español',
+	'eo' : 'Esperanto',
 	'fil' : 'Filipino',
 	'fr' : 'Français',
 	'it' : 'Italiano',
@@ -231,12 +232,19 @@ if (urlParams['offline'] == '1' || urlParams['demo'] == '1' || urlParams['stealt
 	urlParams['gapi'] = '0';
 	urlParams['db'] = '0';
 	urlParams['od'] = '0';
+	urlParams['gh'] = '0';
 }
 
 // Disables math in offline mode
 if (urlParams['offline'] == '1' || urlParams['local'] == '1')
 {
 	urlParams['math'] = '0';
+}
+
+// Lightbox enabled chromeless mode
+if (urlParams['lightbox'] == '1')
+{
+	urlParams['chrome'] = '0';
 }
 
 // Adds hard-coded logging domain for draw.io domains

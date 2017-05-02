@@ -1,12 +1,6 @@
-// $Id = DrawioFile.js,v 1.12 2010-01-02 09 =45 =14 gaudenz Exp $
-// Copyright (c) 2006-2014, JGraph Ltd
 /**
- * Constructs a new point for the optional x and y coordinates. If no
- * coordinates are given, then the default values for <x> and <y> are used.
- * @constructor
- * @class Implements a basic 2D point. Known subclassers = {@link mxRectangle}.
- * @param {number} x X-coordinate of the point.
- * @param {number} y Y-coordinate of the point.
+ * Copyright (c) 2006-2017, JGraph Ltd
+ * Copyright (c) 2006-2017, Gaudenz Alder
  */
 DrawioFile = function(ui, data)
 {
@@ -127,6 +121,14 @@ DrawioFile.prototype.saveAs = function(filename, success, error) { };
  * @param {number} dy Y-coordinate of the translation.
  */
 DrawioFile.prototype.saveFile = function(title, revision, success, error) { };
+
+/**
+ * Returns true if copy, export and print are not allowed for this file.
+ */
+DrawioFile.prototype.getPublicUrl = function(fn)
+{
+	fn(null);
+};
 
 /**
  * Returns true if copy, export and print are not allowed for this file.
@@ -308,14 +310,14 @@ DrawioFile.prototype.open = function()
 			
 			if (this.isAutosave())
 			{
-				this.ui.editor.setStatus(mxResources.get('saving') + '...');
+				this.ui.editor.setStatus(mxUtils.htmlEntities(mxResources.get('saving')) + '...');
 				
 				this.autosave(this.autosaveDelay, this.maxAutosaveDelay, mxUtils.bind(this, function(resp)
 				{
 					// Does not update status if another autosave was scheduled
 					if (this.autosaveThread == null && this.ui.getCurrentFile() == this && !this.isModified())
 					{
-						this.ui.editor.setStatus(mxResources.get('allChangesSaved'));
+						this.ui.editor.setStatus(mxUtils.htmlEntities(mxResources.get('allChangesSaved')));
 					}
 				}), mxUtils.bind(this, function(resp)
 				{
@@ -356,7 +358,8 @@ DrawioFile.prototype.addUnsavedStatus = function(err)
 	if (err instanceof Error && err.message != null)
 	{
 		this.ui.editor.setStatus('<div class="geStatusAlert" style="cursor:pointer;">' +
-				mxResources.get('unsavedChanges') + ' (' + err.message + ')</div>');
+				mxUtils.htmlEntities(mxResources.get('unsavedChanges')) +
+				' (' + mxUtils.htmlEntities(err.message) + ')</div>');
 	}
 	else
 	{
@@ -375,7 +378,7 @@ DrawioFile.prototype.addUnsavedStatus = function(err)
 //		}
 		
 		this.ui.editor.setStatus('<div class="geStatusMessage" style="cursor:pointer;">' +
-			mxResources.get('unsavedChangesClickHereToSave') + '</div>');
+			mxUtils.htmlEntities(mxResources.get('unsavedChangesClickHereToSave')) + '</div>');
 		
 		// Installs click handler for saving
 		if (this.ui.statusContainer != null)

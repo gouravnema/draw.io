@@ -6,7 +6,6 @@ package com.mxgraph.io.vsdx;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -14,19 +13,21 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import com.mxgraph.io.vsdx.theme.Color;
+import com.mxgraph.io.vsdx.theme.QuickStyleVals;
+import com.mxgraph.util.mxConstants;
+
 /**
  * This class is a general wrapper for one Shape Element.<br/>
  * Provides a set of methods for retrieving the value of different properties
  * stored in the shape element.<br/>
  * References to other shapes or style-sheets are not considered.
  */
-public abstract class Style
+public class Style
 {
 	protected Element shape;
 	
 	protected Integer Id;
-	
-	protected Element text = null;
 	
 	// .vsdx cells elements that contain one style each
 	protected Map<String, Element> cellElements = new HashMap<String, Element>();
@@ -40,10 +41,8 @@ public abstract class Style
 	 */
 	protected Map<String, Style> styleParents = new HashMap<String, Style>();
 	
-	protected Style textParent;
+	protected Style style;
 	
-	protected Style theme;
-
 	private final static Logger LOGGER = Logger.getLogger(Style.class.getName());
 	
 	public static boolean vsdxStyleDebug = false;
@@ -60,18 +59,29 @@ public abstract class Style
 		styleTypes.put(mxVsdxConstants.FILL_PATTERN , mxVsdxConstants.FILL_STYLE);
 		styleTypes.put(mxVsdxConstants.SHDW_PATTERN, mxVsdxConstants.FILL_STYLE);
 		styleTypes.put(mxVsdxConstants.FILL_STYLE, mxVsdxConstants.FILL_STYLE);
+		styleTypes.put("QuickStyleFillColor", mxVsdxConstants.FILL_STYLE);
+		styleTypes.put("QuickStyleFillMatrix", mxVsdxConstants.FILL_STYLE);
 		
 		styleTypes.put(mxVsdxConstants.BEGIN_ARROW, mxVsdxConstants.LINE_STYLE);
 		styleTypes.put(mxVsdxConstants.END_ARROW, mxVsdxConstants.LINE_STYLE);
 		styleTypes.put(mxVsdxConstants.LINE_PATTERN, mxVsdxConstants.LINE_STYLE);
 		styleTypes.put(mxVsdxConstants.LINE_COLOR, mxVsdxConstants.LINE_STYLE);
 		styleTypes.put(mxVsdxConstants.LINE_COLOR_TRANS, mxVsdxConstants.LINE_STYLE);
+		styleTypes.put(mxVsdxConstants.LINE_WEIGHT, mxVsdxConstants.LINE_STYLE);
+		styleTypes.put("QuickStyleLineColor", mxVsdxConstants.LINE_STYLE);
+		styleTypes.put("QuickStyleLineMatrix", mxVsdxConstants.LINE_STYLE);
+		styleTypes.put(mxVsdxConstants.BEGIN_ARROW_SIZE, mxVsdxConstants.LINE_STYLE);
+		styleTypes.put(mxVsdxConstants.END_ARROW_SIZE, mxVsdxConstants.LINE_STYLE);
 		
 		styleTypes.put(mxVsdxConstants.TEXT_BKGND, mxVsdxConstants.TEXT_STYLE);
 		styleTypes.put(mxVsdxConstants.BOTTOM_MARGIN, mxVsdxConstants.TEXT_STYLE);
 		styleTypes.put(mxVsdxConstants.LEFT_MARGIN, mxVsdxConstants.TEXT_STYLE);
 		styleTypes.put(mxVsdxConstants.RIGHT_MARGIN, mxVsdxConstants.TEXT_STYLE);
 		styleTypes.put(mxVsdxConstants.TOP_MARGIN, mxVsdxConstants.TEXT_STYLE);
+		styleTypes.put(mxVsdxConstants.PARAGRAPH, mxVsdxConstants.TEXT_STYLE);
+		styleTypes.put(mxVsdxConstants.CHARACTER, mxVsdxConstants.TEXT_STYLE);
+		styleTypes.put("QuickStyleFontColor", mxVsdxConstants.TEXT_STYLE);
+		styleTypes.put("QuickStyleFontMatrix", mxVsdxConstants.TEXT_STYLE);		
 	};
 	
 	/**
@@ -98,6 +108,21 @@ public abstract class Style
 		stylesheetRefs(model);
 	}
 
+	public mxVsdxTheme getTheme()
+	{
+		return null;
+	}
+	
+	public QuickStyleVals getQuickStyleVals()
+	{
+		return null;
+	}
+	
+	public boolean isVertex()
+	{
+		return false;
+	}
+	
 	public void styleDebug(String debug)
 	{
 		if (vsdxStyleDebug)
@@ -110,14 +135,10 @@ public abstract class Style
 	{
 		styleParents.put(mxVsdxConstants.FILL_STYLE, model.getStylesheet(shape.getAttribute(mxVsdxConstants.FILL_STYLE)));
 		styleParents.put(mxVsdxConstants.LINE_STYLE, model.getStylesheet(shape.getAttribute(mxVsdxConstants.LINE_STYLE)));
-		
-		mxStyleSheet textStyle = model.getStylesheet(shape.getAttribute(mxVsdxConstants.TEXT_STYLE));
 		styleParents.put(mxVsdxConstants.TEXT_STYLE, model.getStylesheet(shape.getAttribute(mxVsdxConstants.TEXT_STYLE)));
 		
-		this.textParent = textStyle;
-		
-		mxStyleSheet theme = model.getStylesheet("0");
-		this.theme = theme;
+		Style style = model.getStylesheet("0");
+		this.style = style;
 	}
 
 	/**
@@ -164,10 +185,6 @@ public abstract class Style
 		{
 			this.parseSection(elem);
 		}
-		else if (childName.equals(mxVsdxConstants.TEXT))
-		{
-			this.text = elem;
-		}
 	}
 
 	/**
@@ -189,38 +206,14 @@ public abstract class Style
 	{
 		return this.cellElements.containsKey(tag);
 	}
-
-	/**
-	 * Checks if the 'primary' Element has a child with tag name = 'tag'.
-	 * @param tag Name of the Element to be found.
-	 * @return Returns <code>true</code> if the 'primary' Element has a child with tag name = 'tag'.
-	 */
-	protected boolean hasIndexedProperty(String parentTag, String ix, String tag)
-	{
-		NodeList children = shape.getChildNodes();
-		Element primary = null;
-
-		if (mxVsdxUtils.nodeListHasTag(children, parentTag))
-		{
-			primary = mxVsdxUtils.nodeListTagIndexed(children, parentTag, ix);
-		}
-
-		NodeList xChildren = null;
-
-		if (primary != null)
-		{
-			xChildren = primary.getChildNodes();
-		}
-		
-		return mxVsdxUtils.nodeListHasTag(xChildren, tag);
-	}
 	
 	/**
 	 * Returns the value of the element
 	 * @param elem The element whose value is to be found
-	 * @return String value of the element.
+	 * @param defaultValue the value to return if there is no value attribute
+	 * @return String value of the element, or the default value if no value found
 	 */
-	protected String getText(Element elem, String defaultValue)
+	protected String getValue(Element elem, String defaultValue)
 	{
 		if (elem != null)
 		{
@@ -231,45 +224,12 @@ public abstract class Style
 	}
 
 	/**
-	 * Returns the value of the element with tag name = 'tag' in the children
-	 * of primary.
-	 * @param parentTag tag Name of the parent style element
-	 * @param tag Name of the Element to be found.
-	 * @return String value of the element.
+	 * Returns the value of the element as a double
+	 * @param elem The element whose value is to be found
+	 * @param defaultValue the value to return if there is no value attribute
+	 * @return double value of the element, or the default value if no value found
 	 */
-	protected String getChildText(String parentTag, String ix, String tag, String defaultValue)
-	{
-		NodeList children = shape.getChildNodes();
-		Element primary = null;
-
-		if (mxVsdxUtils.nodeListHasTag(children, parentTag))
-		{
-			primary = mxVsdxUtils.nodeListTagIndexed(children, parentTag, ix);
-		}
-		
-		if (primary != null)
-		{
-			NodeList nodeList = primary.getElementsByTagName(tag);
-			
-			if (nodeList != null && nodeList.getLength() > 0)
-			{
-				return (nodeList.item(0).getTextContent());
-			}
-		}
-
-		return defaultValue;
-	}
-
-	/**
-	 * Returns the value of the element with tag name = 'tag' in the children
-	 * of 'primary' in his double representation.<br/>
-	 * .vdx uses Inches for numerical representations, so this value
-	 * is multiplied by the result of <code>mxVdxUtils.conversionFactor()</code>
-	 * and is converted to pixels.
-	 * @param tag Name of the Element to be found.
-	 * @return Numerical value of the element.
-	 */
-	protected double getNumericalValue(Element cell, double defaultValue)
+	protected double getValueAsDouble(Element cell, double defaultValue)
 	{
 		if (cell != null)
 		{
@@ -285,6 +245,15 @@ public abstract class Style
 				try
 				{
 					double parsedValue = Double.parseDouble(value);
+					
+					String units = cell.getAttribute("U");
+					
+					if (units.equals("PT"))
+					{
+						// Convert from points to pixels
+						parsedValue = parsedValue * mxVsdxUtils.conversionFactor;
+					}
+					
 					return Math.round(parsedValue * 100.0) / 100.0;
 				}
 				catch (NumberFormatException e)
@@ -300,13 +269,10 @@ public abstract class Style
 	//if (!tag.equals(mxVdxConstants.FILL_BKGND_TRANS) && !tag.equals(mxVdxConstants.FILL_FOREGND_TRANS) && !tag.equals(mxVdxConstants.LINE_COLOR_TRANS) && !tag.equals(mxVdxConstants.NO_LINE))
 
 	/**
-	 * Returns the value of the element with tag name = 'tag' in the children
-	 * of 'primary' in his double representation.<br/>
-	 * .vdx uses Inches for numerical representations, so this value
-	 * is multiplied by the result of <code>mxVdxUtils.conversionFactor()</code>
-	 * and is converted to pixels.
-	 * @param tag Name of the Element to be found.
-	 * @return Numerical value of the element.
+	 * Returns the value of the element as a double
+	 * @param elem The element whose value is to be found
+	 * @param defaultValue the value to return if there is no value attribute
+	 * @return double value of the element, or the default value if no value found
 	 */
 	protected double getScreenNumericalValue(Element cell, double defaultValue)
 	{
@@ -319,9 +285,8 @@ public abstract class Style
 				try
 				{
 					double parsedValue = Double.parseDouble(value);
-					parsedValue = parsedValue * mxVsdxUtils.conversionFactor;
 					
-					return Math.round(parsedValue * 100.0) / 100.0;
+					return getScreenNumericalValue(parsedValue);
 				}
 				catch (NumberFormatException e)
 				{
@@ -332,59 +297,13 @@ public abstract class Style
 
 		return defaultValue;
 	}
-	
-	/**
-	 * Returns the value of the element with tag name = 'tag' in the children
-	 * of 'primary' in his double representation.<br/>
-	 * .vdx uses Inches for numerical representations, so this value
-	 * is multiplied by the result of <code>mxVdxUtils.conversionFactor()</code>
-	 * and is converted to pixels.
-	 * @param tag Name of the Element to be found.
-	 * @return Numerical value of the element.
-	 */
-	protected double getChildNumericalValue(String parentTag, String ix, String tag, double defaultValue)
+
+	protected double getScreenNumericalValue(double val)
 	{
-		NodeList children = shape.getChildNodes();
-		Element primary = null;
-
-		if (mxVsdxUtils.nodeListHasTag(children, parentTag))
-		{
-			primary = mxVsdxUtils.nodeListTagIndexed(children, parentTag, ix);
-		}
-		
-		if (primary != null)
-		{
-			NodeList nodeList = primary.getElementsByTagName(tag);
-
-			if (nodeList != null && nodeList.getLength() > 0)
-			{
-				double value = Double.parseDouble(nodeList.item(0).getTextContent()) * mxVsdxUtils.conversionFactor;
-				return Math.round(value * 100.0) / 100.0;
-			}
-		}
-
-		return defaultValue;
+		double conVal = val * mxVsdxUtils.conversionFactor;
+		return Math.round(conVal * 100.0) / 100.0;
 	}
-	
-	/**
-	 * Returns the value of the element with tag name = 'tag' in the children
-	 * of 'primary' in his double representation.<br/>
-	 * @param tag Name of the Element to be found.
-	 * @return Numerical value of the element.
-	 */
-	public String getAttribute(String parentTag, String tag, String attribute, String defaultValue)
-	{
-		String result = defaultValue;
-		Element cell = this.cellElements.get(tag);
-		
-		if (cell != null)
-		{
-			result = cell.getAttribute(attribute);
-		}
 
-		return result;
-	}
-	
 	/**
 	 * Returns the value of the attribute of the element with tag name = 'tag' in the children
 	 * of the shape element<br/>
@@ -449,18 +368,66 @@ public abstract class Style
 		return result;
 	}
 
-	/**
-	 * Finds a cell key in a Section hierarchy
-	 * @param keys the Section/Row/Cell keys
-	 * @return the Cell Element
-	 */
-	protected Element getSectionCell(String[] keys)
+	protected Element getCellElement(String cellKey, String index, String sectKey)
 	{
-		Section section = this.sections.get(keys[0]);
+		Section sect = this.sections.get(sectKey);
+		Element elem = null;
+		boolean inherit = false;
+
+		if (sect != null)
+		{
+			elem = sect.getIndexedCell(index, cellKey);
+		}
 		
-		return section.getCell(keys);
+		if (elem != null)
+		{
+			String form = elem.getAttribute("F");
+			String value = elem.getAttribute("V");
+			
+			if (form != null && value != null)
+			{
+				if (form.equals("Inh") && value.equals("Themed"))
+				{
+					inherit = true;
+				}
+				else if (form.equals("THEMEVAL()") && value.equals("Themed") && style != null)
+				{
+					//Handle theme here
+					//FIXME this is a very hacky way to test themes until fully integrating themes
+					if (mxVsdxConstants.COLOR.equals(cellKey)) return elem;
+
+					// Use "no style" style
+					Element themeElem = style.getCellElement(cellKey, index, sectKey);
+					
+					if (themeElem != null)
+					{
+						return themeElem;
+					}
+				}
+			}
+		}
+
+		if (elem == null || inherit)
+		{
+			String styleType = Style.styleTypes.get(sectKey);
+			Style parentStyle = this.styleParents.get(styleType);
+			
+			if (parentStyle != null)
+			{
+				Element parentElem = parentStyle.getCellElement(cellKey, index, sectKey);
+				
+				if (parentElem != null)
+				{
+					// Only return if non-null. Just in case (and not sure if that's valid) there is an
+					// inherit formula that doesn't resolve to anything
+					return parentElem;
+				}
+			}
+		}
+		
+		return elem;
 	}
-	
+
 	/**
 	 * Locates the first entry for the specified style string in the style hierarchy.
 	 * The order is to look locally, then delegate the request to the relevant parent style
@@ -470,14 +437,6 @@ public abstract class Style
 	 */
 	protected Element getCellElement(String key)
 	{
-		String[] keys = key.split(".");
-		
-		if (keys.length > 1)
-		{
-			// Section being referenced
-			return getSectionCell(keys);
-		}
-
 		Element elem = this.cellElements.get(key);
 		boolean inherit = false;
 		
@@ -492,10 +451,17 @@ public abstract class Style
 				{
 					inherit = true;
 				}
-				else if (form.equals("THEMEVAL()") && value.equals("Themed") && theme != null)
+				else if (form.contains("THEMEVAL()") && value.equals("Themed") && style != null)
 				{
+					//Handle theme here
+					//FIXME this is a very hacky way to test themes until fully integrating themes
+					if ("FillForegnd".equals(key) || mxVsdxConstants.LINE_COLOR.equals(key) || mxVsdxConstants.LINE_PATTERN.equals(key) 
+							|| mxVsdxConstants.BEGIN_ARROW_SIZE.equals(key) || mxVsdxConstants.END_ARROW_SIZE.equals(key)
+							|| mxVsdxConstants.BEGIN_ARROW.equals(key) || mxVsdxConstants.END_ARROW.equals(key)
+							|| mxVsdxConstants.LINE_WEIGHT.equals(key)) return elem;
+					
 					// Use "no style" style
-					Element themeElem = theme.getCellElement(key);
+					Element themeElem = style.getCellElement(key);
 					
 					if (themeElem != null)
 					{
@@ -535,13 +501,28 @@ public abstract class Style
 	{
 		String color = "";
 
-		if (this.getText(this.getCellElement(mxVsdxConstants.LINE_PATTERN), "1").equals("0"))
+		if (this.getValue(this.getCellElement(mxVsdxConstants.LINE_PATTERN), "1").equals("0"))
 		{
 			color = "none";
 		}
 		else
 		{
 			color = this.getColor(this.getCellElement(mxVsdxConstants.LINE_COLOR));
+			
+			if ("Themed".equals(color))
+			{
+				mxVsdxTheme theme = getTheme();
+				
+				if (theme != null)
+				{
+					Color colorObj = isVertex()? theme.getLineColor(getQuickStyleVals()) : theme.getConnLineColor(getQuickStyleVals());
+					color = colorObj.toHexStr();
+				}
+				else
+				{
+					color = "";
+				}				
+			}
 		}
 
 		return color;
@@ -558,7 +539,24 @@ public abstract class Style
 	protected String getFillColor()
 	{
 		String fillForeColor = this.getColor(this.getCellElement(mxVsdxConstants.FILL_FOREGND));
-		String fillPattern = this.getText(this.getCellElement(mxVsdxConstants.FILL_PATTERN), "0");
+		
+		if ("Themed".equals(fillForeColor))
+		{
+			mxVsdxTheme theme = getTheme();
+			
+			if (theme != null)
+			{
+				Color color = theme.getFillColor(getQuickStyleVals());
+				fillForeColor = color.toHexStr();
+			}
+			else
+			{
+				//One sample file has fill color as white when no theme is used and value is Themed!
+				fillForeColor = "#FFFFFF";
+			}
+		}
+
+		String fillPattern = this.getValue(this.getCellElement(mxVsdxConstants.FILL_PATTERN), "0");
 		
 		if (fillPattern != null && fillPattern.equals("0"))
 		{
@@ -572,9 +570,9 @@ public abstract class Style
 
 	protected String getColor(Element elem)
 	{
-		String color = this.getText(elem, "");
+		String color = this.getValue(elem, "");
 
-		if (!color.startsWith("#"))
+		if (!"Themed".equals(color) && !color.startsWith("#"))
 		{
 			color = pm.getColor(color);
 		}
@@ -590,7 +588,7 @@ public abstract class Style
 	 */
 	protected String getTextBkgndColor(Element elem)
 	{
-		String color = this.getText(elem, "");
+		String color = this.getValue(elem, "");
 
 		if (!color.startsWith("#"))
 		{
@@ -599,28 +597,19 @@ public abstract class Style
 				return "none";
 			}
 
-			return pm.getColor(color);
+			return pm.getColor(String.valueOf(Integer.parseInt(color) - 1));
 		}
 		
 		return color;
 	}
 	
 	/**
-	 * Checks if the line weight is defined.
-	 * @return Returns <code>true</code> if the line weight is defined.
-	 */
-	public boolean hasLineWeight()
-	{
-		return hasProperty(mxVsdxConstants.LINE, mxVsdxConstants.LINE_WEIGHT);
-	}
-
-	/**
 	 * Returns the line weight of the shape in pixels
 	 * @return Numerical value of the LineWeight element.
 	 */
 	public double getLineWeight()
 	{
-		return getNumericalValue(this.getCellElement(mxVsdxConstants.LINE_WEIGHT), 0);
+		return getScreenNumericalValue(this.getCellElement(mxVsdxConstants.LINE_WEIGHT), 0);
 	}
 
 	/**
@@ -629,39 +618,7 @@ public abstract class Style
 	 */
 	public double getStrokeTransparency()
 	{
-			return getNumericalValue(this.getCellElement(mxVsdxConstants.LINE_COLOR_TRANS), 0);
-	}
-
-	/**
-	 * Returns the value of the Text element.
-	 * @return Value of the Text element.
-	 */
-	public String getText()
-	{
-		if (this.text != null)
-		{
-			return text.getTextContent();
-		}
-
-		return null;
-	}
-
-	/**
-	 * Returns the children Nodes of Text.
-	 * @return List with the children of the Text element.
-	 */
-	public List<Node> getTextChildren()
-	{
-		List<Node> list = null;
-		NodeList child = null;
-
-		if (this.text != null)
-		{
-			child = text.getChildNodes();
-			list = mxVsdxUtils.copyNodeList(child);
-		}
-
-		return list;
+		return getValueAsDouble(this.getCellElement(mxVsdxConstants.LINE_COLOR_TRANS), 0);
 	}
 
 	/**
@@ -692,47 +649,30 @@ public abstract class Style
 	}
 
 	/**
-	 * Returns the amount of Connection Elements inside of Shape Element.
-	 * @return Number of Connection Elements.
-	 */
-	public int getAmountConnection()
-	{
-		List<Element> lineTo = new ArrayList<Element>();
-		NodeList xChildrens = null;
-
-		if (shape != null)
-		{
-			xChildrens = shape.getChildNodes();
-		}
-
-		if (mxVsdxUtils.nodeListHasTag(xChildrens, mxVsdxConstants.CONNECTION))
-		{
-			lineTo = mxVsdxUtils.nodeListTags(xChildrens, mxVsdxConstants.CONNECTION);
-		}
-
-		return lineTo.size();
-	}
-
-	/**
-	 * Checks if the color of one text fragment is defined
-	 * @param charIX IX attribute of Char element
-	 * @return Returns <code>true</code> if the color of one text fragment is defined.
-	 */
-	public boolean hasTextColor(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.COLOR);
-	}
-
-	/**
 	 * Returns the color of one text fragment
 	 * @param charIX IX attribute of Char element
 	 * @return Text color in hexadecimal representation.
 	 */
-	public String getTextColor(String charIX)
+	public String getTextColor(String index)
 	{
-		String color = getChildText(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.COLOR, "#000000");
+		Element colorElem = getCellElement(mxVsdxConstants.COLOR, index, mxVsdxConstants.CHARACTER);
+		String color = getValue(colorElem, "#000000");
 
-		if (!color.startsWith("#"))
+		if ("Themed".equals(color))
+		{
+			mxVsdxTheme theme = getTheme();
+			
+			if (theme != null)
+			{
+				Color colorObj = isVertex()? theme.getFontColor(getQuickStyleVals()) : theme.getConnFontColor(getQuickStyleVals());
+				color = colorObj.toHexStr();
+			}
+			else
+			{
+				color = "#000000";
+			}				
+		}
+		else if (!color.startsWith("#"))
 		{
 			color = pm.getColor(color);
 		}
@@ -777,53 +717,14 @@ public abstract class Style
 	}
 
 	/**
-	 * Checks if the size of one text fragment is defined.
-	 * @param charIX IX atribute of Char element
-	 * @return Returns <code>true</code> if the size of one text fragment is defined.
-	 */
-	public boolean hasTextSize(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.SIZE);
-	}
-
-	/**
-	 * Returns the size of one text fragment in pixels.
-	 * @param charIX IX atribute of Char element
-	 * @return String representation of the numerical value of the Size element.
-	 */
-	public String getTextSize(String charIX)
-	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.SIZE, 0));
-	}
-
-	/**
-	 * Checks if the style of one text fragment is defined.
-	 * @param charIX IX atribute of Char element
-	 * @return Returns <code>true</code> if the style of one text fragment is defined.
-	 */
-	public boolean hasTextStyle(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.STYLE);
-	}
-
-	/**
 	 * Returns the style of one text fragment.
-	 * @param charIX IX atribute of Char element
+	 * @param charIX IX attribute of Char element
 	 * @return String value of the Style element.
 	 */
-	public String getTextStyle(String charIX)
+	public String getTextStyle(String index)
 	{
-		return getChildText(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.STYLE, "");
-	}
-
-	/**
-	 * Checks if the font of one text fragment is defined
-	 * @param charIX IX atribute of Char element
-	 * @return Returns <code>true</code> if the font of one text fragment is defined.
-	 */
-	public boolean hasTextFont(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.FONT);
+		Element styleElem = getCellElement(mxVsdxConstants.STYLE, index, mxVsdxConstants.CHARACTER);
+		return getValue(styleElem, "");
 	}
 
 	/**
@@ -831,19 +732,10 @@ public abstract class Style
 	 * @param charIX IX attribute of Char element
 	 * @return Name of the font.
 	 */
-	public String getTextFont(String charIX)
+	public String getTextFont(String index)
 	{
-		return pm.getFont(getChildText(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.FONT, ""));
-	}
-
-	/**
-	 * Checks if the position of one text fragment is defined
-	 * @param charIX IX attribute of Char element
-	 * @return Returns <code>true</code> if the position of one text fragment is defined.
-	 */
-	public boolean hasTextPos(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.POS);
+		Element fontElem = getCellElement(mxVsdxConstants.FONT, index, mxVsdxConstants.CHARACTER);
+		return getValue(fontElem, "");
 	}
 
 	/**
@@ -851,26 +743,10 @@ public abstract class Style
 	 * @param charIX IX attribute of Char element
 	 * @return Integer value of the Pos element.
 	 */
-	public int getTextPos(String charIX)
+	public String getTextPos(String index)
 	{
-		String val = getChildText(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.POS, "");
-
-		if (!val.equals(""))
-		{
-			return Integer.parseInt(val);
-		}
-
-		return 0;
-	}
-
-	/**
-	 * Checks if the strikethru of one text fragment is defined
-	 * @param charIX IX attribute of Char element
-	 * @return Returns <code>true</code> if the strikethru of one text fragment is defined
-	 */
-	public boolean hasTextStrike(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.STRIKETHRU);
+		Element posElem = getCellElement(mxVsdxConstants.POS, index, mxVsdxConstants.CHARACTER);
+		return getValue(posElem, "");
 	}
 
 	/**
@@ -878,20 +754,10 @@ public abstract class Style
 	 * @param charIX IX attribute of Char element
 	 * @return Returns <code>true</code> if one text fragment is Strikethru
 	 */
-	public boolean getTextStrike(String charIX)
+	public boolean getTextStrike(String index)
 	{
-		String val = getChildText(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.STRIKETHRU, "");
-		return val.equals("1");
-	}
-
-	/**
-	 * Checks if the case of one text fragment is defined
-	 * @param charIX IX attribute of Char element
-	 * @return Returns <code>true</code> if the case of one text fragment is defined.
-	 */
-	public boolean hasTextCase(String charIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.CASE);
+		Element strikeElem = getCellElement(mxVsdxConstants.STRIKETHRU, index, mxVsdxConstants.CHARACTER);
+		return getValue(strikeElem, "").equals("1");
 	}
 
 	/**
@@ -899,53 +765,41 @@ public abstract class Style
 	 * @param charIX IX attribute of Char element
 	 * @return Integer value of the Case element
 	 */
-	public int getTextCase(String charIX)
+	public String getTextCase(String index)
 	{
-		String val = getChildText(mxVsdxConstants.CHAR, charIX, mxVsdxConstants.CASE, "");
+		Element caseElem = getCellElement(mxVsdxConstants.CASE, index, mxVsdxConstants.CHARACTER);
+		return getValue(caseElem, "");
+	}
 
-		if (!val.equals(""))
+	/**
+	 * Returns the horizontal align property of a paragraph
+	 * @param index IX attribute of Para element
+	 * @param html whether to return the html values or mxGraph values
+	 * @return String value of the HorizontalAlign element.
+	 */
+	public String getHorizontalAlign(String index, boolean html)
+	{
+		String ret = "center";
+		Element horAlign = getCellElement(mxVsdxConstants.HORIZONTAL_ALIGN, index, mxVsdxConstants.PARAGRAPH);
+		String align = getValue(horAlign, "");
+		
+		switch (align)
 		{
-			return Integer.parseInt(val);
+			case "0":
+				ret = html ? "left" : mxConstants.ALIGN_LEFT;
+				break;
+			case "2":
+				ret = html ? "right" : mxConstants.ALIGN_RIGHT;
+				break;
+			case "3":
+			case "4":
+				ret = html ? "justify" : mxConstants.ALIGN_CENTER;
+				break;
+			default:
+				ret = html ? "center" : mxConstants.ALIGN_CENTER;
 		}
-
-		return 0;
-	}
-
-	/**
-	 * Checks if the horizontal align of text  is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the horizontal align of text  is defined.
-	 */
-	public boolean hasHorizontalAlign(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.HORIZONTAL_ALIGN);
-	}
-
-	/**
-	 * Returns the horizontal align property of text
-	 * @param paraIX IX attribute of Para element
-	 * @return Integer value of the HorizontalAlign element.
-	 */
-	public int getHorizontalAlign(String paraIX)
-	{
-		String val = getChildText(mxVsdxConstants.PARAGRAPH, paraIX,	mxVsdxConstants.HORIZONTAL_ALIGN, "");
-
-		if (!val.equals(""))
-		{
-			return Integer.parseInt(val);
-		}
-
-		return 0;
-	}
-
-	/**
-	 * Checks if the first indent of one paragraph is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the first indent of one paragraph is defined.
-	 */
-	public boolean hasIndentFirst(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.INDENT_FIRST);
+		
+		return ret;
 	}
 
 	/**
@@ -953,19 +807,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element
 	 * @return String representation of the numerical value of the IndentFirst element.
 	 */
-	public String getIndentFirst(String paraIX)
+	public String getIndentFirst(String index)
 	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.INDENT_FIRST, 0));
-	}
-
-	/**
-	 * Checks if the indent to left of one paragraph is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the indent to left of one paragraph is defined.
-	 */
-	public boolean hasIndentLeft(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.INDENT_LEFT);
+		Element indentFirstElem = getCellElement(mxVsdxConstants.INDENT_FIRST, index, mxVsdxConstants.PARAGRAPH);
+		return String.valueOf(getScreenNumericalValue(indentFirstElem, 0));
 	}
 
 	/**
@@ -973,19 +818,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element
 	 * @return String representation of the numerical value of the IndentLeft element.
 	 */
-	public String getIndentLeft(String paraIX)
+	public String getIndentLeft(String index)
 	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.INDENT_LEFT, 0));
-	}
-
-	/**
-	 * Checks if the indent to right of one paragraph is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the indent to right of one paragraph is defined.
-	 */
-	public boolean hasIndentRight(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.INDENT_RIGHT);
+		Element indentLeftElem = getCellElement(mxVsdxConstants.INDENT_LEFT, index, mxVsdxConstants.PARAGRAPH);
+		return String.valueOf(getScreenNumericalValue(indentLeftElem, 0));
 	}
 
 	/**
@@ -993,19 +829,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element
 	 * @return String representation of the numerical value of the IndentRight element.
 	 */
-	public String getIndentRight(String paraIX)
+	public String getIndentRight(String index)
 	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.INDENT_RIGHT, 0));
-	}
-
-	/**
-	 * Checks if the space before one paragraph is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the space before one paragraph is defined.
-	 */
-	public boolean hasSpBefore(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.SPACE_BEFORE);
+		Element indentRightElem = getCellElement(mxVsdxConstants.INDENT_RIGHT, index, mxVsdxConstants.PARAGRAPH);
+		return String.valueOf(getScreenNumericalValue(indentRightElem, 0));
 	}
 
 	/**
@@ -1013,19 +840,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element
 	 * @return String representation of the numerical value of the SpBefore element.
 	 */
-	public String getSpBefore(String paraIX)
+	public String getSpBefore(String index)
 	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.SPACE_BEFORE, 0));
-	}
-
-	/**
-	 * Checks if the space after one paragraph is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the space after one paragraph is defined.
-	 */
-	public boolean hasSpAfter(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.SPACE_AFTER);
+		Element spBeforeElem = getCellElement(mxVsdxConstants.SPACE_BEFORE, index, mxVsdxConstants.PARAGRAPH);
+		return String.valueOf(getScreenNumericalValue(spBeforeElem, 0));
 	}
 
 	/**
@@ -1033,19 +851,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element
 	 * @return String representation of the numerical value of the SpAfter element.
 	 */
-	public String getSpAfter(String paraIX)
+	public String getSpAfter(String index)
 	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.SPACE_AFTER, 0));
-	}
-
-	/**
-	 * Checks if the space between lines in one paragraph is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the space between lines in one paragraph is defined.
-	 */
-	public boolean hasSpLine(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.SPACE_LINE);
+		Element spAfterElem = getCellElement(mxVsdxConstants.SPACE_AFTER, index, mxVsdxConstants.PARAGRAPH);
+		return String.valueOf(getScreenNumericalValue(spAfterElem, 0));
 	}
 
 	/**
@@ -1053,9 +862,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element.
 	 * @return Double representation of the value of the SpLine element.
 	 */
-	public double getSpLine(String paraIX)
+	public double getSpLine(String index)
 	{
-		String val = getChildText(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.SPACE_LINE, "");
+		Element spLineElem = getCellElement(mxVsdxConstants.SPACE_LINE, index, mxVsdxConstants.PARAGRAPH);
+		String val = getValue(spLineElem, "");
 
 		if (!val.equals(""))
 		{
@@ -1066,53 +876,14 @@ public abstract class Style
 	}
 
 	/**
-	 * Checks if the flags of one paragraph is defined.
-	 * @param paraIX IX attribute of Para element.
-	 * @return Returns <code>true</code> if the flags of one paragraph is defined.
-	 */
-	public boolean hasFlags(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.FLAGS);
-	}
-
-	/**
 	 * Returns the flags of one paragraph.
 	 * @param paraIX IX attribute of Para element.
 	 * @return String value of the Flags element.
 	 */
-	public String getFlags(String paraIX)
+	public String getFlags(String index)
 	{
-		return getChildText(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.FLAGS, "0");
-	}
-
-	/**
-	 * Checks if the direction of one text fragment is defined
-	 * @param paraIX IX attribute of Para element
-	 * @return Returns <code>true</code> if the direction of one text fragment is defined.
-	 */
-	public boolean hasRTLText(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.RTL_TEXT);
-	}
-
-	/**
-	 * Returns the direction of one text fragment.
-	 * @param paraIX IX attribute of Para element.
-	 * @return String value of the RTLText.
-	 */
-	public String getRTLText(String paraIX)
-	{
-		return getChildText(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.RTL_TEXT, "ltr");
-	}
-
-	/**
-	 * Checks if the space between characters in one text fragment is defined.
-	 * @param paraIX IX attribute of Para element.
-	 * @return Returns <code>true</code> if the space between characters in one text fragment is defined.
-	 */
-	public boolean hasLetterSpace(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.LETTER_SPACE);
+		Element flagsElem = getCellElement(mxVsdxConstants.FLAGS, index, mxVsdxConstants.PARAGRAPH);
+		return getValue(flagsElem, "0");
 	}
 
 	/**
@@ -1120,19 +891,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element.
 	 * @return String representation of the numerical value of the Letterspace element.
 	 */
-	public String getLetterSpace(String paraIX)
+	public String getLetterSpace(String index)
 	{
-		return String.valueOf(getChildNumericalValue(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.LETTER_SPACE, 0));
-	}
-
-	/**
-	 * Checks if the bullet element is defined.
-	 * @param paraIX IX attribute of Para element.
-	 * @return Returns <code>true</code> if the bullet element is defined.
-	 */
-	public boolean hasBullet(String paraIX)
-	{
-		return hasIndexedProperty(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.BULLET);
+		Element letterSpaceElem = getCellElement(mxVsdxConstants.LETTER_SPACE, index, mxVsdxConstants.PARAGRAPH);
+		return String.valueOf(getScreenNumericalValue(letterSpaceElem, 0));
 	}
 
 	/**
@@ -1140,9 +902,10 @@ public abstract class Style
 	 * @param paraIX IX attribute of Para element.
 	 * @return String value of the Bullet element.
 	 */
-	public String getBullet(String paraIX)
+	public String getBullet(String index)
 	{
-		return getChildText(mxVsdxConstants.PARAGRAPH, paraIX, mxVsdxConstants.BULLET, "0");
+		Element bulletElem = getCellElement(mxVsdxConstants.BULLET, index, mxVsdxConstants.PARAGRAPH);
+		return getValue(bulletElem, "0");
 	}
 	
 	public Element getShape() {
@@ -1151,5 +914,176 @@ public abstract class Style
 
 	public void setShape(Element shape) {
 		this.shape = shape;
+	}
+	
+	private final static double SPACE = 4.0, SHORT_SPACE = 2.0, LONG_SPACE = 6.0, DOT = 1.0, DASH = 8.0, LONG_DASH = 12.0, SHORT_DASH = 4.0, XLONG_DASH = 20.0, XSHORT_DASH = 2.0;
+	private final static ArrayList<ArrayList<Double>> lineDashPatterns = new ArrayList<>();   
+	
+	static
+	{
+		//0 no pattern, 1 solid, 2 similar to mxGraph default dash 
+		lineDashPatterns.add(new ArrayList<Double>());
+		lineDashPatterns.add(new ArrayList<Double>());
+		lineDashPatterns.add(new ArrayList<Double>());
+		//3
+		ArrayList<Double> lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//4
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//5
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//6
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//7
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//8
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//9
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//10
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//11
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//12
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//13
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//14
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//15
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPattern.add(SHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//16
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//17
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//18
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//19
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//20
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(LONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DOT);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//21
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(XLONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//22
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(XLONG_DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPattern.add(DASH);
+		lineDashPattern.add(LONG_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+		//23
+		lineDashPattern = new ArrayList<>();
+		lineDashPattern.add(XSHORT_DASH);
+		lineDashPattern.add(SHORT_SPACE);
+		lineDashPatterns.add(lineDashPattern);
+	}
+	public static ArrayList<Double> getLineDashPattern(int pattern)
+	{
+		if (pattern >= 0 && pattern <= 23)
+			return lineDashPatterns.get(pattern);
+		else
+			return lineDashPatterns.get(0);
 	}
 }

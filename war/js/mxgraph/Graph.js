@@ -164,6 +164,17 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 			mouseDown: function(sender, me) {},
 		    mouseMove: mxUtils.bind(this, function(sender, me)
 		    {
+		    	// Checks if any other handler is active
+		    	var handlerMap = this.selectionCellsHandler.handlers.map;
+		    	
+		    	for (var key in handlerMap)
+		    	{
+		    		if (handlerMap[key].index != null)
+		    		{
+		    			return;
+		    		}
+		    	}
+		    	
 		    	if (this.isEnabled() && !this.panningHandler.isActive() && !mxEvent.isControlDown(me.getEvent()) &&
 		    		!mxEvent.isShiftDown(me.getEvent()) && !mxEvent.isAltDown(me.getEvent()))
 		    	{
@@ -870,9 +881,15 @@ Graph.prototype.minFitScale = null;
 Graph.prototype.maxFitScale = null;
 
 /**
- * Sets the default target for all links in cells.
+ * Sets the policy for links. Possible values are "self" to replace any framesets,
+ * "blank" to load the URL in <linkTarget> and "auto" (default).
  */
-Graph.prototype.linkTarget = '_blank';
+Graph.prototype.linkPolicy = (urlParams['target'] == 'frame') ? 'blank' : (urlParams['target'] || 'auto');
+
+/**
+ * Target for links that open in a new window. Default is _blank.
+ */
+Graph.prototype.linkTarget = (urlParams['target'] == 'frame') ? '_self' : '_blank';
 
 /**
  * Scrollbars are enabled on non-touch devices (not including Firefox because touch events
@@ -931,6 +948,11 @@ Graph.prototype.connectionArrowsEnabled = true;
 Graph.prototype.placeholderPattern = new RegExp('%(date\{.*\}|[^%^\{^\}]+)%', 'g');
 
 /**
+ * Specifies the regular expression for matching placeholders.
+ */
+Graph.prototype.absoluteUrlPattern = new RegExp('^(?:[a-z]+:)?//', 'i');
+
+/**
  * Specifies the default name for the theme. Default is 'default'.
  */
 Graph.prototype.defaultThemeName = 'default';
@@ -943,7 +965,7 @@ Graph.prototype.defaultThemes = {};
 /**
  * Base URL for relative links.
  */
-Graph.prototype.baseUrl = (window.location != window.parent.location) ? document.referrer : document.location.toString();
+Graph.prototype.baseUrl = (window != window.top) ? document.referrer : document.location.toString();
 
 /**
  * Installs child layout styles.
@@ -952,6 +974,48 @@ Graph.prototype.init = function(container)
 {
 	mxGraph.prototype.init.apply(this, arguments);
 
+	// Intercepts links with no target attribute and opens in new window
+	this.cellRenderer.initializeLabel = function(state, shape)
+	{
+		mxCellRenderer.prototype.initializeLabel.apply(this, arguments);
+		
+		mxEvent.addListener(shape.node, 'click', mxUtils.bind(this, function(evt)
+		{
+			var elt = mxEvent.getSource(evt)
+			
+			while (elt != null && elt != shape.node)
+			{
+				if (elt.nodeName == 'A')
+				{
+					var href = elt.getAttribute('href');
+					
+					if (href != null)
+					{
+						var target = state.view.graph.isBlankLink(href) ?
+							state.view.graph.linkTarget : '_top';
+						href = state.view.graph.getAbsoluteUrl(href);
+
+						// Workaround for blocking in same iframe
+						if (target == '_self' && window != window.top)
+						{
+							window.location.href = href;
+						}
+						else
+						{
+							window.open(href, target);
+						}
+						
+						mxEvent.consume(evt);
+					}
+	
+					break;
+				}
+				
+				elt = elt.parentNode;
+			}
+		}));
+	};
+	
 	this.initLayoutManager();
 };
 
@@ -2190,7 +2254,7 @@ Graph.prototype.getTooltipForCell = function(cell)
 		}
 		else
 		{
-			var ignored = ['label', 'tooltip', 'placeholders'];
+			var ignored = ['label', 'tooltip', 'placeholders', 'placeholder'];
 			var attrs = cell.value.attributes;
 			
 			// Hides links in edit mode
@@ -2203,15 +2267,8 @@ Graph.prototype.getTooltipForCell = function(cell)
 			{
 				if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0)
 				{
-					// Hides link key in read mode
-					if (attrs[i].nodeName == 'link')
-					{
-						tip += mxUtils.htmlEntities(this.getLinkUrl(attrs[i].nodeValue)) + '\n';
-					}
-					else
-					{
-						tip += attrs[i].nodeName + ': ' + mxUtils.htmlEntities(attrs[i].nodeValue) + '\n';
-					}
+					tip += ((attrs[i].nodeName != 'link') ? attrs[i].nodeName + ':' : '') +
+						mxUtils.htmlEntities(attrs[i].nodeValue) + '\n';
 				}
 			}
 			
@@ -2757,13 +2814,21 @@ HoverIcons.prototype.drag = function(evt, x, y)
 /**
  *
  */
+HoverIcons.prototype.getStateAt = function(state, x, y)
+{
+	return this.graph.view.getState(this.graph.getCellAt(x, y));
+};
+
+/**
+ *
+ */
 HoverIcons.prototype.click = function(state, dir, me)
 {
 	var evt = me.getEvent();
 	var x = me.getGraphX();
 	var y = me.getGraphY();
 	
-	var tmp = this.graph.view.getState(this.graph.getCellAt(x, y));
+	var tmp = this.getStateAt(state, x, y);
 	
 	if (tmp != null && this.graph.model.isEdge(tmp.cell) && !mxEvent.isControlDown(evt) &&
 		(tmp.getVisibleTerminalState(true) == state || tmp.getVisibleTerminalState(false) == state))
@@ -2902,45 +2967,29 @@ HoverIcons.prototype.repaint = function()
 					bottom = null;
 				}
 				
-				// Checks right arrow
-				if (right != null && !this.graph.model.isAncestor(right, this.currentState.cell))
+				var currentGeo = this.graph.getCellGeometry(this.currentState.cell);
+				
+				var checkCollision = mxUtils.bind(this, function(cell, arrow)
 				{
-					this.arrowRight.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowRight.style.visibility = 'visible';
-				}
-
-				// Checks left arrow
-				if (left != null && !this.graph.model.isAncestor(left, this.currentState.cell))
-				{
-					this.arrowLeft.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowLeft.style.visibility = 'visible';
-				}
-
-				// Checks top arrow
-				if (top != null && !this.graph.model.isAncestor(top, this.currentState.cell))
-				{
-					this.arrowUp.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowUp.style.visibility = 'visible';
-				}
-
-				// Checks bottom arrow
-				if (bottom != null && !this.graph.model.isAncestor(bottom, this.currentState.cell))
-				{
-					this.arrowDown.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowDown.style.visibility = 'visible';
-				}
+					var geo = this.graph.model.isVertex(cell) && this.graph.getCellGeometry(cell);
+					
+					// Ignores collision if vertex is more than 3 times the size of this vertex
+					if (cell != null && !this.graph.model.isAncestor(cell, this.currentState.cell) &&
+						(geo == null || currentGeo == null || (geo.height < 6 * currentGeo.height &&
+						geo.width < 6 * currentGeo.width)))
+					{
+						arrow.style.visibility = 'hidden';
+					}
+					else
+					{
+						arrow.style.visibility = 'visible';
+					}
+				});
+				
+				checkCollision(right, this.arrowRight);
+				checkCollision(left, this.arrowLeft);
+				checkCollision(top, this.arrowUp);
+				checkCollision(bottom, this.arrowDown);
 			}
 			else
 			{
@@ -3326,7 +3375,7 @@ mxStencilRegistry.getStencil = function(name)
 							{
 								var req = mxUtils.load(fname);
 								
-								if (req != null && req.getStatus() == 200)
+								if (req != null && req.getStatus() >= 200 && req.getStatus() <= 299)
 								{
 									eval.call(window, req.getText());
 								}
@@ -3407,7 +3456,7 @@ mxStencilRegistry.loadStencilSet = function(stencilFile, postStencilLoad, force,
 				{
 					var req = mxUtils.get(stencilFile, mxUtils.bind(this, function(req)
 					{
-						if (req.getStatus() == 200)
+						if (req.getStatus() >= 200 && req.getStatus() <= 299)
 						{
 							xmlDoc = req.getXml();
 							mxStencilRegistry.packages[stencilFile] = xmlDoc;
@@ -4331,23 +4380,17 @@ if (typeof mxVertexHandler != 'undefined')
 		};
 
 		/**
-		 * Returns the link to be used for the given URL when clicking on a cell
-		 * where the the link is not a blank link and the diagram is not inside
-		 * and iframe.
-		 */
-		Graph.prototype.getLinkUrl = function(url)
-		{
-			return url;
-		};
-
-		/**
 		 * 
 		 */
 		Graph.prototype.getAbsoluteUrl = function(url)
 		{
 			if (url != null && this.isRelativeUrl(url))
 			{
-				if (url.charAt(0) == '/')
+				if (url.charAt(0) == '#')
+				{
+					url = this.baseUrl + url;
+				}
+				else if (url.charAt(0) == '/')
 				{
 					url = this.domainUrl + url;
 				}
@@ -4361,15 +4404,25 @@ if (typeof mxVertexHandler != 'undefined')
 		};
 
 		/**
+		 * Returns true if the fiven href references an external protocol that
+		 * should never open in a new window. Default returns true for mailto.
+		 */
+		Graph.prototype.isExternalProtocol = function(href)
+		{
+			return href.substring(0, 7) === 'mailto:';
+		};
+
+		/**
 		 * Hook for links to open in same window. Default returns true for anchors,
 		 * links to same domain or if target == 'self' in the config.
 		 */
 		Graph.prototype.isBlankLink = function(href)
 		{
-			var dom = this.domainUrl;
-			
-			return urlParams['target'] != 'self' && href != null && href.charAt(0) != '#' &&
-				href.substring(0, dom.length) != dom && !this.isRelativeUrl(href);
+			return !this.isExternalProtocol(href) &&
+				(this.linkPolicy === 'blank' ||
+				(this.linkPolicy !== 'self' &&
+				!this.isRelativeUrl(href) &&
+				href.substring(0, this.domainUrl.length) !== this.domainUrl));
 		};
 
 		/**
@@ -4377,17 +4430,17 @@ if (typeof mxVertexHandler != 'undefined')
 		 */
 		Graph.prototype.isRelativeUrl = function(url)
 		{
-			return !(new RegExp('^(?:[a-z]+:)?//', 'i').test(url)) && url.substring(0, 10) != 'data:image' &&
-				url.substring(0, 7) != 'mailto:';
+			return url != null && !this.absoluteUrlPattern.test(url) &&
+				url.substring(0, 5) !== 'data:' &&
+				!this.isExternalProtocol(url);
 		};
 
 		/**
-		 * Adds a handler for clicking on shapes with links. This replaces all links in labels
-		 * as a side-effect and adds a target=_blank attribute if required.
+		 * Adds a handler for clicking on shapes with links. This replaces all links in labels.
 		 */
 		Graph.prototype.addClickHandler = function(highlight, beforeClick, onClick)
 		{
-			// Hides lightbox before executing links on same page
+			// Replaces links in labels for consistent right-clicks
 			var checkLinks = mxUtils.bind(this, function()
 			{
 				var links = this.container.getElementsByTagName('a');
@@ -4396,30 +4449,13 @@ if (typeof mxVertexHandler != 'undefined')
 				{
 					for (var i = 0; i < links.length; i++)
 					{
-						var href = this.getLinkUrl(links[i].getAttribute('href'));
-						links[i].setAttribute('href', href);
+						var href = this.getAbsoluteUrl(links[i].getAttribute('href'));
 						
-						if (href != null && !this.isBlankLink(href))
+						if (href != null)
 						{
-							if (window != window.top)
-							{
-								links[i].setAttribute('target', '_top');
-								
-								if (href.charAt(0) === '#')
-								{
-									links[i].setAttribute('href', this.baseUrl + href);
-								}
-								else
-								{
-									links[i].setAttribute('href', this.getAbsoluteUrl(href));
-								}
-							}
-							else if (links[i].getAttribute('target') == '_blank')
-							{
-								links[i].removeAttribute('target');
-							}
-
-			    			if (beforeClick != null)
+							links[i].setAttribute('href', href);
+							
+							if (beforeClick != null)
 			    			{
 			    				mxEvent.addListener(links[i], 'click', beforeClick);
 			    			}
@@ -4514,50 +4550,32 @@ if (typeof mxVertexHandler != 'undefined')
 			    mouseUp: function(sender, me)
 			    {
 			    	var source = me.getSource();
-			    	var tmp = this.currentLink;
-			    	this.clear();
 			    	
 			    	// Ignores clicks on links and collapse/expand icon
 			    	if (source.nodeName.toLowerCase() != 'a' && !me.isConsumed() &&
 			    		(me.getState() == null || !me.isSource(me.getState().control)) &&
 			    		(mxEvent.isLeftMouseButton(me.getEvent()) || mxEvent.isTouchEvent(me.getEvent())))
 			    	{
-				    	if (tmp != null) 
+				    	if (this.currentLink != null) 
 				    	{
-				    		if (!graph.isBlankLink(tmp))
+				    		var blank = graph.isBlankLink(this.currentLink);
+				    		
+				    		if (!blank && beforeClick != null)
 				    		{
-				    			if (beforeClick != null)
-				    			{
-				    				beforeClick(me.getEvent());
-				    			}
-				    			
-				    			if (tmp.charAt(0) == '#')
-				    			{
-				    				if (window != window.top)
-						    		{
-				    					window.open(graph.baseUrl + tmp, '_top');
-						    		}
-				    				else
-				    				{
-				    					window.location.hash = tmp;
-				    				}
-				    			}
-				    			else
-					    		{
-			    					if (window != window.top)
-						    		{
-				    					window.open(graph.getAbsoluteUrl(tmp), '_top');
-						    		}
-				    				else
-				    				{
-				    					window.location = tmp;
-				    				}
-				    			}
+			    				beforeClick(me.getEvent());
 				    		}
-				    		else
-				    		{
-				    			window.open(tmp);
-				    		}
+				    		
+				    		var target = (blank) ? graph.linkTarget : '_top';
+				    		
+				    		// Workaround for blocking in same iframe
+							if (target == '_self' && window != window.top)
+							{
+								window.location.href = this.currentLink;
+							}
+							else
+							{
+								window.open(this.currentLink, target);
+							}
 				    		
 				    		me.consume();
 				    	}
@@ -4570,12 +4588,13 @@ if (typeof mxVertexHandler != 'undefined')
 				    		onClick(me.getEvent());
 			    		}
 			    	}
+			    	
+			    	this.clear();
 			    },
 			    activate: function(state)
 			    {
-			    	var tmp = graph.getLinkForCell(state.cell);
-			    	this.currentLink = (tmp != null) ? graph.getLinkUrl(tmp) : null;
-			    	
+			    	this.currentLink = graph.getAbsoluteUrl(graph.getLinkForCell(state.cell));
+
 			    	if (this.currentLink != null)
 			    	{
 			    		graph.container.style.cursor = 'pointer';
@@ -4711,33 +4730,8 @@ if (typeof mxVertexHandler != 'undefined')
 			}
 			else
 			{
-				// To find the new link, we create a list of all existing links first
-				var tmp = this.cellEditor.textarea.getElementsByTagName('a');
-				var oldLinks = [];
-				
-				for (var i = 0; i < tmp.length; i++)
-				{
-					oldLinks.push(tmp[i]);
-				}
-
 				// LATER: Fix inserting link/image in IE8/quirks after focus lost
 				document.execCommand('createlink', false, mxUtils.trim(value));
-
-				// Adds target="_blank" for the new link
-				var newLinks = this.cellEditor.textarea.getElementsByTagName('a');
-				
-				if (newLinks.length == oldLinks.length + 1)
-				{
-					// Inverse order in favor of appended links
-					for (var i = newLinks.length - 1; i >= 0; i--)
-					{
-						if (i == 0 || newLinks[i] != oldLinks[i - 1])
-						{
-							newLinks[i].setAttribute('target', '_blank');
-							break;
-						}
-					}
-				}
 			}
 		};
 		
@@ -4758,10 +4752,10 @@ if (typeof mxVertexHandler != 'undefined')
 		};
 		
 		/**
-		 * Function: alignCells
+		 * Function: distributeCells
 		 * 
-		 * Aligns the given cells vertically or horizontally according to the given
-		 * alignment using the optional parameter as the coordinate.
+		 * Distribuets the centers of the given cells equally along the available
+		 * horizontal or vertical space.
 		 * 
 		 * Parameters:
 		 * 
@@ -4819,20 +4813,21 @@ if (typeof mxVertexHandler != 'undefined')
 						
 						for (var i = 1; i < vertices.length - 1; i++)
 						{
+							var pstate = this.view.getState(this.model.getParent(vertices[i].cell));
 							var geo = this.getCellGeometry(vertices[i].cell);
 							t0 += dt;
 							
-							if (geo != null)
+							if (geo != null && pstate != null)
 							{
 								geo = geo.clone();
 								
 								if (horizontal)
 								{
-									geo.x = Math.round(t0 - geo.width / 2);
+									geo.x = Math.round(t0 - geo.width / 2) - pstate.origin.x;
 								}
 								else
 								{
-									geo.y = Math.round(t0 - geo.height / 2);
+									geo.y = Math.round(t0 - geo.height / 2) - pstate.origin.y;
 								}
 								
 								this.getModel().setGeometry(vertices[i].cell, geo);
@@ -4869,6 +4864,14 @@ if (typeof mxVertexHandler != 'undefined')
 		{
 			var clones = this.cloneCells(cells);
 			
+			// Creates a dictionary for fast lookups
+			var dict = new mxDictionary();
+			
+			for (var i = 0; i < cells.length; i++)
+			{
+				dict.put(cells[i], true);
+			}
+			
 			// Checks for orphaned relative children and makes absolute
 			for (var i = 0; i < clones.length; i++)
 			{
@@ -4878,7 +4881,8 @@ if (typeof mxVertexHandler != 'undefined')
 				{
 					var geo = this.getCellGeometry(clones[i]);
 					
-					if (geo != null && geo.relative)
+					if (geo != null && geo.relative && !this.model.isEdge(cells[i]) &&
+						!dict.get(this.model.getParent(cells[i])))
 					{
 						geo.relative = false;
 						geo.x = state.x / state.view.scale - state.view.translate.x;
@@ -4927,30 +4931,18 @@ if (typeof mxVertexHandler != 'undefined')
 		Graph.prototype.getSvg = function(background, scale, border, nocrop, crisp, ignoreSelection, showText)
 		{
 			scale = (scale != null) ? scale : 1;
-			border = (border != null) ? border : 1;
+			border = (border != null) ? border : 0;
 			crisp = (crisp != null) ? crisp : true;
 			ignoreSelection = (ignoreSelection != null) ? ignoreSelection : true;
 			showText = (showText != null) ? showText : true;
 
-			var bounds = (nocrop) ? this.view.getBackgroundPageBounds() : (ignoreSelection) ?
+			var bounds = (ignoreSelection || nocrop) ?
 					this.getGraphBounds() : this.getBoundingBox(this.getSelectionCells());
 
 			if (bounds == null)
 			{
-				throw Error(mxResources.get('drawingEmpty'));	
+				throw Error(mxResources.get('drawingEmpty'));
 			}
-			
-			var imgExport = this.createSvgImageExport();
-			var imgExportDrawCellState = imgExport.drawCellState;
-			
-			// Implements ignoreSelection flag
-			imgExport.drawCellState = function(state, canvas)
-			{
-				if (ignoreSelection || state.view.graph.isCellSelected(state.cell))
-				{
-					imgExportDrawCellState.apply(this, arguments);
-				}
-			};
 
 			var vs = this.view.scale;
 			
@@ -4983,8 +4975,8 @@ if (typeof mxVertexHandler != 'undefined')
 			}
 			
 			var s = scale / vs;
-			root.setAttribute('width', (Math.ceil(bounds.width * s) + 2 * border) + 'px');
-			root.setAttribute('height', (Math.ceil(bounds.height * s) + 2 * border) + 'px');
+			root.setAttribute('width', Math.max(1, Math.ceil(bounds.width * s) + 2 * border) + 'px');
+			root.setAttribute('height', Math.max(1, Math.ceil(bounds.height * s) + 2 * border) + 'px');
 			root.setAttribute('version', '1.1');
 			
 		    // Adds group for anti-aliasing via transform
@@ -5006,9 +4998,10 @@ if (typeof mxVertexHandler != 'undefined')
 		
 		    // Renders graph. Offset will be multiplied with state's scale when painting state.
 			// TextOffset only seems to affect FF output but used everywhere for consistency.
-			var svgCanvas = new mxSvgCanvas2D(node);
+			var svgCanvas = this.createSvgCanvas(node);
 			svgCanvas.foOffset = (crisp) ? -0.5 : 0;
 			svgCanvas.textOffset = (crisp) ? -0.5 : 0;
+			svgCanvas.imageOffset = (crisp) ? -0.5 : 0;
 			svgCanvas.translate(Math.floor((border / scale - bounds.x) / vs), Math.floor((border / scale - bounds.y) / vs));
 
 			// Adds simple text fallback for viewers with no support for foreignObjects
@@ -5071,10 +5064,30 @@ if (typeof mxVertexHandler != 'undefined')
 			
 			svgCanvas.scale(s);
 			svgCanvas.textEnabled = showText;
+			
+			var imgExport = this.createSvgImageExport();
+			var imgExportDrawCellState = imgExport.drawCellState;
+			
+			// Implements ignoreSelection flag
+			imgExport.drawCellState = function(state, canvas)
+			{
+				if (ignoreSelection || state.view.graph.isCellSelected(state.cell))
+				{
+					imgExportDrawCellState.apply(this, arguments);
+				}
+			};
 
 			imgExport.drawState(this.getView().getState(this.model.root), svgCanvas);
 		
 			return root;
+		};
+		
+		/**
+		 * Hook for creating the canvas used in getSvg.
+		 */
+		Graph.prototype.createSvgCanvas = function(node)
+		{
+			return new mxSvgCanvas2D(node);
 		};
 		
 		/**
@@ -6764,7 +6777,7 @@ if (typeof mxVertexHandler != 'undefined')
 				}
 				
 				var a = document.createElement('a');
-				a.setAttribute('href', this.graph.getLinkUrl(link));
+				a.setAttribute('href', this.graph.getAbsoluteUrl(link));
 				a.setAttribute('title', link);
 				
 				if (this.graph.linkTarget != null)

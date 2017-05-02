@@ -1,5 +1,6 @@
 package com.mxgraph.io.vsdx;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -58,34 +59,22 @@ public class mxVsdxPage {
 
 		this.Id = Integer.valueOf(pageElem.getAttribute(mxVsdxConstants.ID));
 		this.pageName = pageElem.getAttribute(mxVsdxConstants.NAME);
+				
+		ArrayList<Element> pageSheets = mxVsdxUtils.getDirectChildNamedElements(pageElem, "PageSheet");
+		
+		if (pageSheets.size() > 0)
+		{
+			Element pageSheet = pageSheets.get(0);
+			ArrayList<Element> cells = mxVsdxUtils.getDirectChildNamedElements(pageSheet, "Cell");
+			
+			for (Element cellElem : cells)
+			{
+				String n = cellElem.getAttribute("N");
+				this.cellElements.put(n, cellElem);		
+			}
+		}
 		
 		parseNodes(pageElem, model, "pages");
-		
-		Node child = pageElem.getFirstChild();
-		
-		while (child != null)
-		{
-			if (child instanceof Element && ((Element)child).getTagName().equals("PageSheet"))
-			{
-				Node childNode = child.getFirstChild();
-				
-				while (childNode != null)
-				{
-					if (childNode instanceof Element && ((Element)childNode).getTagName().equals("Cell"))
-					{
-						Element childElem = (Element) childNode;
-						String n = childElem.getAttribute("N");
-						cellElements.put(n, childElem);
-					}
-					
-					childNode = childNode.getNextSibling();
-				}
-				
-				break;
-			}
-			
-			child = child.getNextSibling();
-		}
 	}
 
 	/**
@@ -222,25 +211,24 @@ public class mxVsdxPage {
 					{
 						masterTmp = model.getMaster(masterId);
 					}
-					else
-					{
-						masterId = shapeElem.getAttribute(mxVsdxConstants.MASTER_SHAPE);
-	
-						if (masterId != null && !masterId.equals(""))
-						{
-							masterTmp = model.getMaster(masterId);
-						}					
-					}
 				}
 				
 				boolean isEdge = isEdge(shapeElem);
-				//String type = mxVdxShape.getType(shapeElem);
 				
 				// If the master of the shape has an xform1D, it's an edge
 				if (!isEdge && masterTmp != null)
 				{
-					isEdge = isEdge(masterTmp.getMasterElement());
+					String masterId = shapeElem.getAttribute(mxVsdxConstants.MASTER_SHAPE);
+
+					Element elem = masterTmp.getMasterElement();
+					if (masterId != null && !masterId.equals(""))
+					{
+						elem = masterTmp.getSubShape(masterId).getShape();
+					}
+					isEdge = isEdge(elem);
 				}
+				
+				//String type = mxVdxShape.getType(shapeElem);
 				
 				VsdxShape shape = this.createCell(shapeElem, !isEdge, masterTmp);
 				
@@ -295,15 +283,15 @@ public class mxVsdxPage {
 
 	/**
 	 * Returns the width and height of a Page expressed as an mxPoint.
-	 * @return mxPoint that represents the dimensions of the shape
+	 * @return mxPoint that represents the dimensions of the page
 	 */
 	public mxPoint getPageDimensions()
 	{
 		double pageH = 0;
 		double pageW = 0;
 
-		Element height = cellElements.get("PageHeight");
-		Element width = cellElements.get("PageWidth");
+		Element height = this.cellElements.get("PageHeight");
+		Element width = this.cellElements.get("PageWidth");
 		
 		if (height != null)
 		{
@@ -318,6 +306,63 @@ public class mxVsdxPage {
 		}
 
 		return new mxPoint(pageW, pageH);
+	}
+	
+	/**
+	 * Returns the drawing scale attribute of this page
+	 * @return the DrawingScale
+	 */
+	public double getDrawingScale()
+	{
+		Element scale = this.cellElements.get("DrawingScale");
+		
+		if (scale != null)
+		{
+			return Double.valueOf(scale.getAttribute("V")) * mxVsdxUtils.conversionFactor;
+		}
+		
+		return 1;
+	}
+	
+
+	/**
+	 * Returns the page scale attribute of this page
+	 * @return the PageScale
+	 */
+	public double getPageScale()
+	{
+		Element scale = this.cellElements.get("PageScale");
+		
+		if (scale != null)
+		{
+			return Double.valueOf(scale.getAttribute("V")) * mxVsdxUtils.conversionFactor;
+		}
+		
+		return 1;
+	}
+
+	public String getCellValue(String cellName)
+	{
+		Element cell = this.cellElements.get(cellName);
+		
+		if (cell != null)
+		{
+			return cell.getAttribute("V");
+		}
+		
+		return null;		
+	}
+	
+	public int getCellIntValue(String cellName, int defVal)
+	{
+		String val = getCellValue(cellName);
+		
+		if (val != null)
+		{
+			return Integer.parseInt(val);
+		}
+		
+		return defVal;
 	}
 	
 	/**

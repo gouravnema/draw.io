@@ -70,7 +70,7 @@ Actions.prototype.init = function()
 	}).isEnabled = isGraphEnabled;
 	this.addAction('save', function() { ui.saveFile(false); }, null, null, 'Ctrl+S').isEnabled = isGraphEnabled;
 	this.addAction('saveAs...', function() { ui.saveFile(true); }, null, null, 'Ctrl+Shift+S').isEnabled = isGraphEnabled;
-	this.addAction('export...', function() { ui.showDialog(new ExportDialog(ui).container, 300, 210, true, true); });
+	this.addAction('export...', function() { ui.showDialog(new ExportDialog(ui).container, 300, 230, true, true); });
 	this.addAction('editDiagram...', function()
 	{
 		var dlg = new EditDiagramDialog(ui);
@@ -145,7 +145,9 @@ Actions.prototype.init = function()
 				
 				for (var i = 0; i < parents.length; i++)
 				{
-					if (graph.model.isVertex(parents[i]) || graph.model.isEdge(parents[i]))
+					if (graph.model.contains(parents[i]) &&
+						(graph.model.isVertex(parents[i]) ||
+						graph.model.isEdge(parents[i])))
 					{
 						select.push(parents[i]);
 					}
@@ -168,10 +170,10 @@ Actions.prototype.init = function()
 	{
 		graph.setSelectionCells(graph.duplicateCells());
 	}, null, null, 'Ctrl+D');
-	this.addAction('turn', function()
+	this.put('turn', new Action(mxResources.get('turn') + ' / ' + mxResources.get('reverse'), function()
 	{
-		graph.setSelectionCells(graph.turnShapes(graph.getSelectionCells()));
-	}, null, null, 'Ctrl+R');
+		graph.turnShapes(graph.getSelectionCells());
+	}, null, null, 'Ctrl+R'));
 	this.addAction('selectVertices', function() { graph.selectVertices(); }, null, null, 'Ctrl+Shift+I');
 	this.addAction('selectEdges', function() { graph.selectEdges(); }, null, null, 'Ctrl+Shift+E');
 	this.addAction('selectAll', function() { graph.selectAll(null, true); }, null, null, 'Ctrl+A');
@@ -302,7 +304,7 @@ Actions.prototype.init = function()
 			});
 		}
 	});
-	this.addAction('insertLink', function()
+	this.addAction('insertLink...', function()
 	{
 		if (graph.isEnabled() && !graph.isCellLocked(graph.getDefaultParent()))
 		{
@@ -440,25 +442,31 @@ Actions.prototype.init = function()
 		    	if (state.style['html'] == '1')
 		    	{
 		    		value = null;
-		    		
-					// Removes newlines from HTML and converts breaks to newlines
-					// to match the HTML output in plain text
-					if (mxUtils.getValue(state.style, 'nl2Br', '1') != '0')
-					{
-						graph.cellLabelChanged(state.cell, graph.convertValueToString(state.cell).
-							replace(/\n/g, '').replace(/<br\s*.?>/g, '\n'));
-					}
-		    	}
-		    	else
-		    	{
-		    		// FIXME: HTML entities are converted in plain text labels if word wrap is on
-		    		// TODO: Convert HTML entities? (Check for userobject!)
-					// Converts newlines in plain text to breaks in HTML
-					// to match the plain text output
 		    		var label = graph.convertValueToString(state.cell);
 		    		
 		    		if (mxUtils.getValue(state.style, 'nl2Br', '1') != '0')
 					{
+						// Removes newlines from HTML and converts breaks to newlines
+						// to match the HTML output in plain text
+						label = label.replace(/\n/g, '').replace(/<br\s*.?>/g, '\n');
+					}
+		    		
+		    		// Removes HTML tags
+	    			var temp = document.createElement('div');
+	    			temp.innerHTML = label;
+	    			label = mxUtils.extractTextWithWhitespace(temp.childNodes);
+	    			
+					graph.cellLabelChanged(state.cell, label);
+		    	}
+		    	else
+		    	{
+		    		// Converts HTML tags to text
+		    		var label = mxUtils.htmlEntities(graph.convertValueToString(state.cell), false);
+		    		
+		    		if (mxUtils.getValue(state.style, 'nl2Br', '1') != '0')
+					{
+						// Converts newlines in plain text to breaks in HTML
+						// to match the plain text output
 		    			label = label.replace(/\n/g, '<br/>');
 					}
 		    		
@@ -517,8 +525,8 @@ Actions.prototype.init = function()
 		graph.zoomTo(1);
 		ui.resetScrollbars();
 	}, null, null, 'Ctrl+H');
-	this.addAction('zoomIn', function(evt) { graph.zoomIn(); }, null, null, 'Ctrl + / Alt+Mousewheel');
-	this.addAction('zoomOut', function(evt) { graph.zoomOut(); }, null, null, 'Ctrl - / Alt+Mousewheel');
+	this.addAction('zoomIn', function(evt) { graph.zoomIn(); }, null, null, 'Ctrl + (Numpad) / Alt+Mousewheel');
+	this.addAction('zoomOut', function(evt) { graph.zoomOut(); }, null, null, 'Ctrl - (Numpad) / Alt+Mousewheel');
 	this.addAction('fitWindow', function() { graph.fit(); }, null, null, 'Ctrl+Shift+H');
 	this.addAction('fitPage', mxUtils.bind(this, function()
 	{
@@ -958,6 +966,8 @@ Actions.prototype.init = function()
 		
 		if (cells != null)
 		{
+			cells = graph.addAllEdges(cells);
+			
 			graph.getModel().beginUpdate();
 			try
 			{
@@ -983,7 +993,7 @@ Actions.prototype.init = function()
 				graph.getModel().endUpdate();
 			}
 		}
-	});
+	}, null, null, 'Alt+Shift+C');
 	action = this.addAction('subscript', mxUtils.bind(this, function()
 	{
 	    if (graph.cellEditor.isContentEditing())
